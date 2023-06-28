@@ -121,7 +121,7 @@ public class LiveIndexWriterConfig {
     mergedSegmentWarmer = null;
     delPolicy = new KeepOnlyLastCommitDeletionPolicy();
     commit = null;
-    useCompoundFile = IndexWriterConfig.DEFAULT_USE_COMPOUND_FILE_SYSTEM;
+    useCompoundFile = IndexWriterConfig.DEFAULT_USE_COMPOUND_FILE_SYSTEM; // segment:  (cfs cfe) == (si,fnm,fdt.....)
     openMode = OpenMode.CREATE_OR_APPEND;
     similarity = IndexSearcher.getDefaultSimilarity();
     mergeScheduler = new ConcurrentMergeScheduler();

@@ -23,13 +23,13 @@ import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.codecs.TermVectorsWriter;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
-
+// 和 FreqProxTermsWriterPerField 最大的区别是: TermVectorsCOnsumerPerField每处理完一个doc，就进行序列化然后重置等待处理下一个doc
 final class TermVectorsConsumerPerField extends TermsHashPerField {
-
+// 实际上在TermVectorsConsumerPerField中只负责调度Lucene90CompressingTermVectorsWriter进行操作
   private TermVectorsPostingsArray termVectorsPostingsArray;
 
-  private final TermVectorsConsumer termsWriter;
-  private final FieldInvertState fieldState;
+  private final TermVectorsConsumer termsWriter; // 调度词向量的构建的最上层逻辑，负责创建
+  private final FieldInvertState fieldState; // per-field信息, 与PerField类的FieldInvertState相绑定
   private final FieldInfo fieldInfo;
 
   private boolean doVectors;
@@ -69,18 +69,18 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
   void finish() {
     if (!doVectors || getNumTerms() == 0) {
       return;
-    }
-    termsWriter.addFieldToFlush(this);
+    }                                 // TermVectors和FreqProx的差异就是, 前者每次处理完一个doc,就要finish
+    termsWriter.addFieldToFlush(this);//对于某个doc, perfield已经处理完了自己field的信息. 可以被调用finishDocument了
   }
 
   void finishDocument() throws IOException {
-    if (doVectors == false) {
+    if (doVectors == false) { //
       return;
     }
 
     doVectors = false;
 
-    final int numPostings = getNumTerms();
+    final int numPostings = getNumTerms(); // 在term倒排中, 有多少个 term, 需要构造倒排链
 
     final BytesRef flushTerm = termsWriter.flushTerm;
 
@@ -91,27 +91,27 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
     // our hash into the DocWriter.
 
     TermVectorsPostingsArray postings = termVectorsPostingsArray;
-    final TermVectorsWriter tv = termsWriter.writer;
+    final TermVectorsWriter tv = termsWriter.writer; // Lucene90CompressingTermVectorsWriter
 
-    sortTerms();
-    final int[] termIDs = getSortedTermIDs();
-
+    sortTerms(); // 按照字典序排序
+    final int[] termIDs = getSortedTermIDs(); // 下表是ord, 值是  termID
+    // 开始用writer 处理一个field
     tv.startField(fieldInfo, numPostings, doVectorPositions, doVectorOffsets, hasPayloads);
-
+    // 从bytepool中读取 pos, 读取offset
     final ByteSliceReader posReader = doVectorPositions ? termsWriter.vectorSliceReaderPos : null;
     final ByteSliceReader offReader = doVectorOffsets ? termsWriter.vectorSliceReaderOff : null;
 
     for (int j = 0; j < numPostings; j++) {
       final int termID = termIDs[j];
       final int freq = postings.freqs[termID];
-
+      // 按照顺序,获取倒排的termID, 然后获取它的内容在bytepool里的地址, 通过地址, 获取内容
       // Get BytesRef
       termBytePool.setBytesRef(flushTerm, postings.textStarts[termID]);
-      tv.startTerm(flushTerm, freq);
+      tv.startTerm(flushTerm, freq); // 准备序列化term的词向量信息
 
       if (doVectorPositions || doVectorOffsets) {
         if (posReader != null) {
-          initReader(posReader, termID, 0);
+          initReader(posReader, termID, 0); // 在bytepool里定位到stream0, termID的pos信息位置
         }
         if (offReader != null) {
           initReader(offReader, termID, 1);
@@ -127,22 +127,22 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
     fieldInfo.setStoreTermVectors();
   }
 
-  @Override
+  @Override // // 每次start都做这么多检查, 太麻烦了吧. 但是 start 不能缺少, 因为吧上一次处理此field的信息拿出来, 赋到当下在处理的state里
   boolean start(IndexableField field, boolean first) {
-    super.start(field, first);
-    termFreqAtt = fieldState.termFreqAttribute;
+    super.start(field, first); // tv 需要 freq, 然后会判断是否需要offset,payload,需要的话,当前stream的attr提取器给到此类
+    termFreqAtt = fieldState.termFreqAttribute; // todo: 但是为什么没有posIncre的?因为需要prox的时候,
     assert field.fieldType().indexOptions() != IndexOptions.NONE;
 
-    if (first) {
+    if (first) { // 是否第一次处理, 不是话,保留此doc的此field的上一次状态,继续append
 
-      if (getNumTerms() != 0) {
+      if (getNumTerms() != 0) { // 清理上一次遗留的状态, 上一次doc收集的时候, 遇到了异常,且是可继续的异常
         // Only necessary if previous doc hit a
         // non-aborting exception while writing vectors in
         // this field:
         reset();
       }
 
-      reinitHash();
+      reinitHash(); // reinit 方法, 只有在reset方法里的 bytesHash.clear(false) 方法被调用之后, 才起作用. 否则, no effect
 
       hasPayloads = false;
 
@@ -233,23 +233,23 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
   }
 
   void writeProx(TermVectorsPostingsArray postings, int termID) {
-    if (doVectorOffsets) {
-      int startOffset = fieldState.offset + offsetAttribute.startOffset();
+    if (doVectorOffsets) { // fieldState.offset不是之前更新过了吗??
+      int startOffset = fieldState.offset + offsetAttribute.startOffset();//相加才能获得这个field实例(如field_a)的offset,连接之前的
       int endOffset = fieldState.offset + offsetAttribute.endOffset();
-
-      writeVInt(1, startOffset - postings.lastOffsets[termID]);
-      writeVInt(1, endOffset - startOffset);
+      // 向stream 1 里写入 offset, length
+      writeVInt(1, startOffset - postings.lastOffsets[termID]);//上一个token的结束位置,和这一个的开始位置的length
+      writeVInt(1, endOffset - startOffset); // token length
       postings.lastOffsets[termID] = endOffset;
-    }
+    }                        // 1 写入offset, length
 
-    if (doVectorPositions) {
+    if (doVectorPositions) { // 0 写入 pos, payload
       final BytesRef payload;
       if (payloadAttribute == null) {
         payload = null;
       } else {
         payload = payloadAttribute.getPayload();
       }
-
+      // 差值存储, 所以 fieldState, 一定是当前的termId的positon了
       final int pos = fieldState.position - postings.lastPositions[termID];
       if (payload != null && payload.length > 0) {
         writeVInt(0, (pos << 1) | 1);
@@ -264,12 +264,12 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
   }
 
   @Override
-  void newTerm(final int termID, final int docID) {
-    TermVectorsPostingsArray postings = termVectorsPostingsArray;
-
-    postings.freqs[termID] = getTermFreq();
-    postings.lastOffsets[termID] = 0;
-    postings.lastPositions[termID] = 0;
+  void newTerm(final int termID, final int docID) {//新建term(对于TermVectorsConsumerPerField是第一次见到,对于
+    TermVectorsPostingsArray postings = termVectorsPostingsArray;// FreqProxTermsWriterPerField也是,
+    // 因为调用了FreqProxTermsWriterPerField,才会调用到对于TermVectorsConsumerPerField的newTerm
+    postings.freqs[termID] = getTermFreq(); // term在这里这个doc里出现了几次 //如果不是自定义的, 则是1. 不是自定义的, 则不能有pos信息
+    postings.lastOffsets[termID] = 0; // 为啥是0?因为是 newTerm, 新建的倒排信息,之前都没出现过这个termId的信息
+    postings.lastPositions[termID] = 0; // 所以没有last的信息, last的都是0
 
     writeProx(postings, termID);
   }
@@ -278,7 +278,7 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
   void addTerm(final int termID, final int docID) {
     TermVectorsPostingsArray postings = termVectorsPostingsArray;
 
-    postings.freqs[termID] += getTermFreq();
+    postings.freqs[termID] += getTermFreq(); // 更新下freq,// position, offset 反映在 attr 里, 不需要显式手动更新
 
     writeProx(postings, termID);
   }
@@ -320,10 +320,10 @@ final class TermVectorsConsumerPerField extends TermsHashPerField {
       lastOffsets = new int[size];
       lastPositions = new int[size];
     }
-
-    int[] freqs; // How many times this term occurred in the current doc
-    int[] lastOffsets; // Last offset we saw
-    int[] lastPositions; // Last position where this term occurred
+    // 下标都是termID
+    int[] freqs; // How many times this term occurred in the current doc//当前doc,当前field
+    int[] lastOffsets; // Last offset we saw // delta压缩, startoffset, endoffset
+    int[] lastPositions; // Last position where this term occurred // delata压缩
 
     @Override
     ParallelPostingsArray newInstance(int size) {

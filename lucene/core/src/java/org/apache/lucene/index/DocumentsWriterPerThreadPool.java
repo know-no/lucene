@@ -87,7 +87,7 @@ final class DocumentsWriterPerThreadPool implements Iterable<DocumentsWriterPerT
     while (takenWriterPermits > 0) {
       // we can't create new DWPTs while not all permits are available
       try {
-        wait();
+        wait(); // 原生等待, 放弃自己的synchronized ,知道被notify, 且 takenWriterPermits <= 0
       } catch (InterruptedException ie) {
         throw new ThreadInterruptedException(ie);
       }
@@ -99,7 +99,7 @@ final class DocumentsWriterPerThreadPool implements Iterable<DocumentsWriterPerT
     // end of the world it's violating the contract that we don't release any new DWPT after this
     // pool is closed
     ensureOpen();
-    DocumentsWriterPerThread dwpt = dwptFactory.get();
+    DocumentsWriterPerThread dwpt = dwptFactory.get(); // 其实就是从哪些索引文件, files上建立一个writer
     dwpt.lock(); // lock so nobody else will get this DWPT
     dwpts.add(dwpt);
     return dwpt;
@@ -112,7 +112,7 @@ final class DocumentsWriterPerThreadPool implements Iterable<DocumentsWriterPerT
    * This method is used by DocumentsWriter/FlushControl to obtain a DWPT to do an indexing
    * operation (add/updateDocument).
    */
-  DocumentsWriterPerThread getAndLock() {
+  DocumentsWriterPerThread getAndLock() { // freeList里没有 可以 tryLock的, 就会新建一个
     synchronized (this) {
       ensureOpen();
       DocumentsWriterPerThread dwpt = freeList.poll(DocumentsWriterPerThread::tryLock);

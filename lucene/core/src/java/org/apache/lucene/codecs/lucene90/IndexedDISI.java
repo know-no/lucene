@@ -90,7 +90,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
  *
  * @lucene.internal
  */
-public final class IndexedDISI extends DocIdSetIterator {
+public final class IndexedDISI extends DocIdSetIterator { // 牛逼的docid 压缩存储 ,可以很方便的判断docid是否存在这里
 
   // jump-table time/space trade-offs to consider:
   // The block offsets and the block indexes could be stored in more compressed form with
@@ -144,7 +144,7 @@ public final class IndexedDISI extends DocIdSetIterator {
     int bitCount = 0;
     for (int word = 0; word < DENSE_BLOCK_LONGS; word++) {
       if ((word & rankMark) == 0) { // Every longsPerRank longs
-        rank[word >> rankIndexShift] = (byte) (bitCount >> 8);
+        rank[word >> rankIndexShift] = (byte) (bitCount >> 8); // rank是字节数组,但是bitcount最大是65536,即16位, 所以要高低各八位
         rank[(word >> rankIndexShift) + 1] = (byte) (bitCount & 0xFF);
       }
       bitCount += Long.bitCount(bits[word]);
@@ -582,8 +582,8 @@ public final class IndexedDISI extends DocIdSetIterator {
     DENSE {
       @Override
       boolean advanceWithinBlock(IndexedDISI disi, int target) throws IOException {
-        final int targetInBlock = target & 0xFFFF;
-        final int targetWordIndex = targetInBlock >>> 6;
+        final int targetInBlock = target & 0xFFFF; // 1111 1111 1111 1111 取最后的16位
+        final int targetWordIndex = targetInBlock >>> 6; // targetInBlock / 64 = 知道在哪个long里存着
 
         // If possible, skip ahead using the rank cache
         // If the distance between the current position and the target is < rank-longs

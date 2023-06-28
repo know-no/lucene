@@ -55,7 +55,7 @@ class NumericDocValuesWriter extends DocValuesWriter<NumericDocValues> {
               + "\" appears more than once in this document (only one value is allowed per field)");
     }
 
-    pending.add(value);
+    pending.add(value); // add的是long值, 不是ord
     docsWithField.add(docID);
 
     updateBytesUsed();
@@ -117,7 +117,7 @@ class NumericDocValuesWriter extends DocValuesWriter<NumericDocValues> {
               throw new IllegalArgumentException("wrong fieldInfo");
             }
             if (sorted == null) {
-              return new BufferedNumericDocValues(finalValues, docsWithField.iterator());
+              return new BufferedNumericDocValues(finalValues, docsWithField.iterator()); // 传递的第二个参数是 iterator,只能用一次
             } else {
               return new SortingNumericDocValues(sorted);
             }

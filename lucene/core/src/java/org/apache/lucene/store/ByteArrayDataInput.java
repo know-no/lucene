@@ -26,8 +26,8 @@ import org.apache.lucene.util.BytesRef;
  */
 public final class ByteArrayDataInput extends DataInput {
 
-  private byte[] bytes;
-
+  private byte[] bytes; // 仅仅包一个数组, 数据从这个数组来, 可以省略许多低级的检查
+// 什么场景用的多呢? 数据已知已有,已经在内存中的情况.仅仅包装一下子, 作为datainput,方便使用接口使用
   private int pos;
   private int limit;
 
@@ -108,7 +108,7 @@ public final class ByteArrayDataInput extends DataInput {
   }
 
   @Override
-  public int readVInt() {
+  public int readVInt() { // 没必要重写父类的此方法. 反正正确实现了 readByte，这里吧readByte的实现拿出来贴到这里，是为了更好的内联？？
     byte b = bytes[pos++];
     if (b >= 0) return b;
     int i = b & 0x7F;

@@ -25,11 +25,11 @@ import java.util.Objects;
  * readers, but only one thread can be adding documents at a time, with no other reader or writer
  * threads accessing this object.
  */
-public final class FieldInfo {
+public final class FieldInfo { // FIeld info file 多线程读安全， 单线程写安全
   /** Field's name */
   public final String name;
   /** Internal field number */
-  public final int number;
+  public final int number; // 内部number
 
   private DocValuesType docValuesType = DocValuesType.NONE;
 

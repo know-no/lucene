@@ -376,7 +376,7 @@ public final class CodecUtil {
   /** Expert: just reads and verifies the suffix of an index header */
   public static String checkIndexHeaderSuffix(DataInput in, String expectedSuffix)
       throws IOException {
-    int suffixLength = in.readByte() & 0xFF;
+    int suffixLength = in.readByte() & 0xFF; // 通过强行提升,suffixLength不可能是负数. 但如果in.readByte是负数, 则出现bug. 如-1 & 0xFF是255
     byte[] suffixBytes = new byte[suffixLength];
     in.readBytes(suffixBytes, 0, suffixBytes.length);
     String suffix = new String(suffixBytes, 0, suffixBytes.length, StandardCharsets.UTF_8);
@@ -663,11 +663,11 @@ public final class CodecUtil {
   }
 
   /** read int value from header / footer with big endian order */
-  public static int readBEInt(DataInput in) throws IOException {
-    return ((in.readByte() & 0xFF) << 24)
-        | ((in.readByte() & 0xFF) << 16)
-        | ((in.readByte() & 0xFF) << 8)
-        | (in.readByte() & 0xFF);
+  public static int readBEInt(DataInput in) throws IOException { // 平平无奇大端读int
+    return ((in.readByte() & 0xFF) << 24) // 不过, 其实不用和 0xFF 操作下吧
+        | ((in.readByte() & 0xFF) << 16) // byte getA(){return (byte)4}; byte getA(){return 4};  byte getA(){return (byte)400};
+        | ((in.readByte() & 0xFF) << 8) //  ((getA() & 0xFF)  << 24) | ((getA() & 0xFF)<< 16) | ((getA()&0xFF) << 8) | getA()
+        | (in.readByte() & 0xFF); //  (getA() << 24) | (getA() << 16) | (getA() << 8) | getA()
   }
 
   /** read long value from header / footer with big endian order */

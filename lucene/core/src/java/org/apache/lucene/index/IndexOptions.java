@@ -47,5 +47,5 @@ public enum IndexOptions {
    * Indexes documents, frequencies, positions and offsets. Character offsets are encoded alongside
    * the positions.
    */
-  DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
+  DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, // doc and freq is one stream, position_and_offset is another stream
 }

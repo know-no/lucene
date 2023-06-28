@@ -98,7 +98,7 @@ public class Lucene90SegmentInfoFormat extends SegmentInfoFormat {
   @Override
   public SegmentInfo read(Directory dir, String segment, byte[] segmentID, IOContext context)
       throws IOException {
-    final String fileName = IndexFileNames.segmentFileName(segment, "", SI_EXTENSION);
+    final String fileName = IndexFileNames.segmentFileName(segment, "", SI_EXTENSION); // SegmentInfo文件的后缀 .si
     try (ChecksumIndexInput input = dir.openChecksumInput(fileName, context)) {
       Throwable priorE = null;
       SegmentInfo si = null;
@@ -115,7 +115,7 @@ public class Lucene90SegmentInfoFormat extends SegmentInfoFormat {
     }
   }
 
-  private SegmentInfo parseSegmentInfo(
+  private SegmentInfo parseSegmentInfo( // parse出segment的描述文件
       Directory dir, DataInput input, String segment, byte[] segmentID) throws IOException {
     final Version version = Version.fromBits(input.readInt(), input.readInt(), input.readInt());
     byte hasMinVersion = input.readByte();
@@ -135,14 +135,14 @@ public class Lucene90SegmentInfoFormat extends SegmentInfoFormat {
     if (docCount < 0) {
       throw new CorruptIndexException("invalid docCount: " + docCount, input);
     }
-    final boolean isCompoundFile = input.readByte() == SegmentInfo.YES;
+    final boolean isCompoundFile = input.readByte() == SegmentInfo.YES; // 是否使用了组合文件套餐, 如果是会生成: .cfe .cfs这两类文件
+    // 不然是: .fdx  .fdt .tvd .tvx .liv .dim .dii .tim .tip .doc .pos .pay .nvd .nvm .dvm .dvd
+    final Map<String, String> diagnostics = input.readMapOfStrings(); // 关于 os, java, lucene version, source(触发源来自flush, 或者是merge, 或者是commit) 时间戳
+    final Set<String> files = input.readSetOfStrings(); //  segment对应的索引文件的名字, 即cfe, cfs, .fx等等
+    final Map<String, String> attributes = input.readMapOfStrings(); //attributes 记录了存储域的索引文件,索引模式:BEST_SPEED和BEST_COMPRESSION
 
-    final Map<String, String> diagnostics = input.readMapOfStrings();
-    final Set<String> files = input.readSetOfStrings();
-    final Map<String, String> attributes = input.readMapOfStrings();
-
-    int numSortFields = input.readVInt();
-    Sort indexSort;
+    int numSortFields = input.readVInt(); // 排序规则的个数
+    Sort indexSort; //影响内部的doc的排序.
     if (numSortFields > 0) {
       SortField[] sortFields = new SortField[numSortFields];
       for (int i = 0; i < numSortFields; i++) {

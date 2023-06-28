@@ -24,9 +24,9 @@ import org.apache.lucene.store.IndexInput;
 /**
  * Represents a logical byte[] as a series of pages. You can write-once into the logical byte[]
  * (append only), using copy, and then retrieve slices (BytesRef) into it using fill.
- *
- * @lucene.internal
- */
+ * // 逻辑上就是一个byte数组，只是为了避免大数组对内存不友好，所以分成多个block，或者说page。
+ * @lucene.internal // 另外读写同源. 通过它获取的datainput ,可以获取通过它的dataoutput写入的数据, 本质还是一个池子
+ */                 // 通过 frozen 来改变写模式到读模式
 // TODO: refactor this, byteblockpool, fst.bytestore, and any
 // other "shift/mask big arrays". there are too many of these classes!
 public final class PagedBytes implements Accountable {

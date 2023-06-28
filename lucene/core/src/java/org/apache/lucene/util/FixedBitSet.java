@@ -242,10 +242,10 @@ public final class FixedBitSet extends BitSet {
   public boolean getAndSet(int index) {
     assert index >= 0 && index < numBits : "index=" + index + ", numBits=" + numBits;
     int wordNum = index >> 6; // div 64
-    long bitmask = 1L << index;
-    boolean val = (bits[wordNum] & bitmask) != 0;
-    bits[wordNum] |= bitmask;
-    return val;
+    long bitmask = 1L << index; // 虽然index会超过64, 但是1L是long,所以实际等于 1L << (index%64)
+    boolean val = (bits[wordNum] & bitmask) != 0; // if = 0, 则重复,val =false;  if != 0, 则新增, val=true
+    bits[wordNum] |= bitmask; // anyway,设置
+    return val; // 如果insert了, 则返回true
   }
 
   @Override

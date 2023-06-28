@@ -68,7 +68,7 @@ public abstract class DataOutput {
    * @see DataInput#readInt()
    * @see BitUtil#VH_LE_INT
    */
-  public void writeInt(int i) throws IOException {
+  public void writeInt(int i) throws IOException { // 写入的时候先写数据低位字节, 再写高位字节, LE, 小端
     writeByte((byte) i);
     writeByte((byte) (i >> 8));
     writeByte((byte) (i >> 16));
@@ -195,12 +195,12 @@ public abstract class DataOutput {
    * @throws IOException If there is an I/O error writing to the underlying medium.
    * @see DataInput#readVInt()
    */
-  public final void writeVInt(int i) throws IOException {
-    while ((i & ~0x7F) != 0) {
-      writeByte((byte) ((i & 0x7F) | 0x80));
-      i >>>= 7;
-    }
-    writeByte((byte) i);
+  public final void writeVInt(int i) throws IOException { // java 内存是小端吗？ 如果把低位数据认为是低地址，那就是小端吧
+    while ((i & ~0x7F) != 0) { // i &  1111...1111 1000 0000 , res != 0 表示: 如果除了低7位的其他位还有数据
+      writeByte((byte) ((i & 0x7F) | 0x80)); // i & 0111 1111 , 取七位, | 1000 0000,  或1是为了设置连续位
+      i >>>= 7;                              // 数据低位最先被写入
+    } // 跳出循环，表示除了低七位的其他高位没有数据了，可以直接写入i了，i里面的第八位肯定是0
+    writeByte((byte) i);                     // 对于负数也是支持的, 因为负数的标识-1在32位, 我们用了40位, 32的信息不会被扰乱
   }
 
   /**
@@ -274,7 +274,7 @@ public abstract class DataOutput {
     writeBytes(utf8Result.bytes, utf8Result.offset, utf8Result.length);
   }
 
-  private static int COPY_BUFFER_SIZE = 16384;
+  private static int COPY_BUFFER_SIZE = 16384; // 16kb
   private byte[] copyBuffer;
 
   /** Copy numBytes bytes from input to ourself. */

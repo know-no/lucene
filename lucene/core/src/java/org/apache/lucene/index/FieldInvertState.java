@@ -39,11 +39,11 @@ public final class FieldInvertState {
   int length;
   int numOverlap;
   int offset;
-  int maxTermFrequency;
+  int maxTermFrequency; // 这个doc的这个field出现最多的term的freq
   int uniqueTermCount;
-  // we must track these across field instances (multi-valued case)
-  int lastStartOffset = 0;
-  int lastPosition = 0;
+  // we must track these across field instances (multi-valued case)  考虑field_a, field_b, field_a
+  int lastStartOffset = 0; // 相对于 offset: 当处理完一个term token的时候, 更新此值;
+  int lastPosition = 0;    // 相对于 position:当处理完一个term token的时候, 更新此值;
   AttributeSource attributeSource;
 
   OffsetAttribute offsetAttribute;
@@ -85,10 +85,10 @@ public final class FieldInvertState {
     length = 0;
     numOverlap = 0;
     offset = 0;
-    maxTermFrequency = 0;
-    uniqueTermCount = 0;
-    lastStartOffset = 0;
-    lastPosition = 0;
+    maxTermFrequency = 0; // doc级别, field级别, 此doc的此field里, 出现次数最多的term
+    uniqueTermCount = 0; // doc级别, field级别,
+    lastStartOffset = 0; // 因为一次处理一个token,
+    lastPosition = 0;   //
   }
 
   // TODO: better name?

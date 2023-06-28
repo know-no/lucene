@@ -55,7 +55,7 @@ import org.apache.lucene.util.SuppressForbidden;
  * <p>Due to <a href="http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4724038">this bug</a> in
  * Sun's JRE, MMapDirectory's {@link IndexInput#close} is unable to close the underlying OS file
  * handle. Only when GC finally collects the underlying objects, which could be quite some time
- * later, will the file handle be closed.
+ * later, will the file handle be closed. //没办法unmap, 只能等gc
  *
  * <p>This will consume additional transient disk usage: on Windows, attempts to delete or overwrite
  * the files will result in an exception; on other platforms, which typically have a &quot;delete on
@@ -153,7 +153,7 @@ public class MMapDirectory extends FSDirectory {
     if (maxChunkSize <= 0) {
       throw new IllegalArgumentException("Maximum chunk size for mmap must be >0");
     }
-    this.chunkSizePower = 31 - Integer.numberOfLeadingZeros(maxChunkSize);
+    this.chunkSizePower = 31 - Integer.numberOfLeadingZeros(maxChunkSize); //默认64位jre, 则31-1 = 30
     assert this.chunkSizePower >= 0 && this.chunkSizePower <= 30;
   }
 
@@ -244,17 +244,17 @@ public class MMapDirectory extends FSDirectory {
     }
   }
 
-  /** Maps a file into a set of buffers */
+  /** Maps a file into a set of buffers */ // mmap的调用点
   final ByteBuffer[] map(String resourceDescription, FileChannel fc, long offset, long length)
       throws IOException {
-    if ((length >>> chunkSizePower) >= Integer.MAX_VALUE)
-      throw new IllegalArgumentException(
+    if ((length >>> chunkSizePower) >= Integer.MAX_VALUE) //把总数据大小分块, 每块(2^chunkSizePower)大小
+      throw new IllegalArgumentException(                 // total/大小 = 块数
           "RandomAccessFile too big for chunk size: " + resourceDescription);
 
     final long chunkSize = 1L << chunkSizePower;
 
     // we always allocate one more buffer, the last one may be a 0 byte one
-    final int nrBuffers = (int) (length >>> chunkSizePower) + 1;
+    final int nrBuffers = (int) (length >>> chunkSizePower) + 1;// 总大小如果没有一个块大,设块数为1.除此之外没什么其他意义吧
 
     ByteBuffer[] buffers = new ByteBuffer[nrBuffers];
 
@@ -263,9 +263,9 @@ public class MMapDirectory extends FSDirectory {
       int bufSize =
           (int) ((length > (bufferStart + chunkSize)) ? chunkSize : (length - bufferStart));
       MappedByteBuffer buffer;
-      try {
+      try { // 返回: MappedByteBuffer, 需要unmap进行卸载
         buffer = fc.map(MapMode.READ_ONLY, offset + bufferStart, bufSize);
-        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.order(ByteOrder.LITTLE_ENDIAN); // 设置为小端, 方便java读取
       } catch (IOException ioe) {
         throw convertMapFailedIOException(ioe, resourceDescription, bufSize);
       }
@@ -331,7 +331,8 @@ public class MMapDirectory extends FSDirectory {
   public static final String UNMAP_NOT_SUPPORTED_REASON;
 
   /** Reference to a BufferCleaner that does unmapping; {@code null} if not supported. */
-  private static final BufferCleaner CLEANER;
+  private static final BufferCleaner CLEANER; // 额外的用来unmap: MappedByteBuffer. 因为MappedByteBuffer使用map得到的,
+    // 但是却不能unmap数据: https://zhuanlan.zhihu.com/p/37325025
 
   static {
     final Object hack =
@@ -349,7 +350,7 @@ public class MMapDirectory extends FSDirectory {
   }
 
   @SuppressForbidden(reason = "Needs access to sun.misc.Unsafe to enable hack")
-  private static Object unmapHackImpl() {
+  private static Object unmapHackImpl() { // 检查是否能够使用 unmap, 卸载
     final Lookup lookup = lookup();
     try {
       // *** sun.misc.Unsafe unmapping (Java 9+) ***

@@ -77,24 +77,24 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
   static final int VERSION_CURRENT = VERSION_START;
   static final int META_VERSION_START = 0;
 
-  private final String segment;
-  private FieldsIndexWriter indexWriter;
-  private IndexOutput metaStream, fieldsStream;
-
+  private final String segment;         // indexWriter 写 fdx, fdt, fdm的前前缀
+  private FieldsIndexWriter indexWriter; //索引生成工具:用来生成所有chunk中的起始doc编号和chunk在数据文件中的位置信息，方便读取的时候快速定位doc所属的chunk，并从文件中读取chunk。总体逻辑是先使用临时文件存储前面说的两个信息，在真正生成索引文件的时候，使用DirectMonotonicWriter进行压缩存储，减小索引文件大小。
+  private IndexOutput metaStream, fieldsStream; // 这liang个类分别是写：fdm，fdt的
+  // fdm  field data meta,  fdt 存的正派数据
   private Compressor compressor;
   private final CompressionMode compressionMode;
   private final int chunkSize;
   private final int maxDocsPerChunk;
 
-  private final ByteBuffersDataOutput bufferedDocs;
-  private int[] numStoredFields; // number of stored fields
-  private int[] endOffsets; // end offsets in bufferedDocs
-  private int docBase; // doc ID at the beginning of the chunk
-  private int numBufferedDocs; // docBase + numBufferedDocs == current doc ID
+  private final ByteBuffersDataOutput bufferedDocs; // 缓存所有的field的值;要写入一个chunk的
+  private int[] numStoredFields; // number of stored fields // 下标是当前chunk中的docID的偏移量，值是对应doc的字段个数
+  private int[] endOffsets; // end offsets in bufferedDocs // 下标是当前chunk中的docID的偏移量，值是对应doc的所有需要store的数据在bufferedDocs中的结束位置
+  private int docBase; // doc ID at the beginning of the chunk // chunk中的起始id
+  private int numBufferedDocs; // docBase + numBufferedDocs == current doc ID // chunk中的doc个数,也可以理解为在这个chunk中的id
 
   private long numChunks;
-  private long numDirtyChunks; // number of incomplete compressed blocks written
-  private long numDirtyDocs; // cumulative number of missing docs in incomplete chunks
+  private long numDirtyChunks; // number of incomplete compressed blocks written // dirtyChunk总数，未满足生成chunk的条件时，强制生成的chunk是dirtyChunk
+  private long numDirtyDocs; // cumulative number of missing docs in incomplete chunks // dirtyDoc总数，dirtyChunk中的doc是dirtyDoc
 
   /** Sole constructor. */
   Lucene90CompressingStoredFieldsWriter(
@@ -149,7 +149,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
               blockShift,
               context);
 
-      metaStream.writeVInt(chunkSize);
+      metaStream.writeVInt(chunkSize); // 嘿嘿, 第一步就是写入了chunkSize
 
       success = true;
     } finally {
@@ -171,54 +171,54 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     }
   }
 
-  private int numStoredFieldsInDoc;
+  private int numStoredFieldsInDoc; // 处理一个doc时， 已经处理的field的个数
 
   @Override
   public void startDocument() throws IOException {}
 
-  @Override
-  public void finishDocument() throws IOException {
-    if (numBufferedDocs == this.numStoredFields.length) {
+  @Override // 结束对一个doc的处理
+  public void finishDocument() throws IOException { // 结束一个doc的处理， 判断本批缓存里的doc数据是否到达限制了
+    if (numBufferedDocs == this.numStoredFields.length) { // 判断 numStoredFields数组容量是否用完了，用完了就扩容
       final int newLength = ArrayUtil.oversize(numBufferedDocs + 1, 4);
       this.numStoredFields = ArrayUtil.growExact(this.numStoredFields, newLength);
       endOffsets = ArrayUtil.growExact(endOffsets, newLength);
     }
-    this.numStoredFields[numBufferedDocs] = numStoredFieldsInDoc;
+    this.numStoredFields[numBufferedDocs] = numStoredFieldsInDoc;//此doc的处理了的storedfield的数目，写入数组
     numStoredFieldsInDoc = 0;
-    endOffsets[numBufferedDocs] = Math.toIntExact(bufferedDocs.size());
+    endOffsets[numBufferedDocs] = Math.toIntExact(bufferedDocs.size()); // 记录当前doc的storedField在缓存output中的结束的位置
     ++numBufferedDocs;
-    if (triggerFlush()) {
-      flush(false);
+    if (triggerFlush()) { // 判断是否triger flush : 1. 大小超过一个chunk 2. doc个数超出一个chunk的限制
+      flush(false); // 本质上是想要生成一个chunk, 如果处理的doc的数量,或者存储大小符合阈值了 // 到此为止, 没有任何和 FieldsIndexWriter的关系
     }
   }
 
   private static void saveInts(int[] values, int length, DataOutput out) throws IOException {
-    if (length == 1) {
+    if (length == 1) { // 极致压缩， 如果只有一个， 直接写int， 如果是多个
       out.writeVInt(values[0]);
     } else {
       StoredFieldsInts.writeInts(values, 0, length, out);
     }
   }
 
-  private void writeHeader(
-      int docBase,
-      int numBufferedDocs,
-      int[] numStoredFields,
-      int[] lengths,
+  private void writeHeader( // 写chunk的header, 即不写入chunk的本身的数据, 而是写本身数据的一些meta信息, 并且也是写入了fieldsStrem(fdt,tvd)
+      int docBase,//docBase
+      int numBufferedDocs,//this.numBufferedDocs//docBase + numBufferedDocs == current docID//chunk中的doc个数也可以理解为在这个chunk中的id
+      int[] numStoredFields,//this.numStoredFields //下标是当前chunk中的docID的偏移量，值是对应doc的字段个数
+      int[] lengths, // 每个doc的所有storedfield 在 buffer 里的长度
       boolean sliced,
       boolean dirtyChunk)
       throws IOException {
     final int slicedBit = sliced ? 1 : 0;
     final int dirtyBit = dirtyChunk ? 2 : 0;
     // save docBase and numBufferedDocs
-    fieldsStream.writeVInt(docBase);
+    fieldsStream.writeVInt(docBase); // 正排数据， 写入dockbase
     fieldsStream.writeVInt((numBufferedDocs << 2) | dirtyBit | slicedBit);
-
+    // docBase  （numBufferedDocs|dirtyBit|slicedBit)）
     // save numStoredFields
-    saveInts(numStoredFields, numBufferedDocs, fieldsStream);
+    saveInts(numStoredFields, numBufferedDocs, fieldsStream);// 存每个doc拥有的storedfield的数量
 
     // save lengths
-    saveInts(lengths, numBufferedDocs, fieldsStream);
+    saveInts(lengths, numBufferedDocs, fieldsStream); // 还会写入length, 即end位置在buffer中的位置
   }
 
   private boolean triggerFlush() {
@@ -227,37 +227,37 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
         numBufferedDocs >= maxDocsPerChunk;
   }
 
-  private void flush(boolean force) throws IOException {
+  private void flush(boolean force) throws IOException { // 刷写出一个chunk来
     assert triggerFlush() != force;
-    numChunks++;
-    if (force) {
+    numChunks++; // 全局变量，标识这个writer会生成的 chunk的数量
+    if (force) { // force, 代表着可能是要关闭了，或者强制flush, 反正chunk的大小还没达到限制上限
       numDirtyChunks++; // incomplete: we had to force this flush
       numDirtyDocs += numBufferedDocs;
-    }
-    indexWriter.writeIndex(numBufferedDocs, fieldsStream.getFilePointer());
-
+    }         // 这里的index不是lucene的index概念， 而是通常意义上的索引;向临时meta里写入,这次要flush的chunk的文档的个数
+    indexWriter.writeIndex(numBufferedDocs, fieldsStream.getFilePointer());//并且把上一个trunk在data里的长度写入临时文件 idxWriter的flush不再这里
+    // 将fdt，即chunk形式存储的store的字段的trunk的位置信息，写入到 indexWriter里(具体是临时文件)
     // transform end offsets into lengths
     final int[] lengths = endOffsets;
     for (int i = numBufferedDocs - 1; i > 0; --i) {
-      lengths[i] = endOffsets[i] - endOffsets[i - 1];
-      assert lengths[i] >= 0;
-    }
-    final boolean sliced = bufferedDocs.size() >= 2 * chunkSize;
+      lengths[i] = endOffsets[i] - endOffsets[i - 1]; // endOffsets是数组，下标是docid**偏移量**，值是doc的所有storedfield是值在buffer中的end位置
+      assert lengths[i] >= 0;  // 这里其实是进行了一次压缩， 可以得到doc的storedfield在buffer中的数据长度; 因为上文是偏移量，所以最小是1
+    }                         // 所谓偏移， 是相对于chunk的docBase而言
+    final boolean sliced = bufferedDocs.size() >= 2 * chunkSize; // 实际大小，大于了2x约束
     final boolean dirtyChunk = force;
-    writeHeader(docBase, numBufferedDocs, numStoredFields, lengths, sliced, dirtyChunk);
-
+    writeHeader(docBase, numBufferedDocs, numStoredFields, lengths, sliced, dirtyChunk);//chunk已经在内存在构建完成,写入到fieldsStream里
+    // 写下header，读取的时候依据header读取,
     // compress stored fields to fieldsStream.
     //
     // TODO: do we need to slice it since we already have the slices in the buffer? Perhaps
     // we should use max-block-bits restriction on the buffer itself, then we won't have to check it
     // here.
-    byte[] content = bufferedDocs.toArrayCopy();
-    bufferedDocs.reset();
+    byte[] content = bufferedDocs.toArrayCopy(); // trunk的数据本身
+    bufferedDocs.reset(); // 重置，释放空间，让gc有机会快点执行
 
     if (sliced) {
-      // big chunk, slice it
+      // big chunk, slice it // 切片压缩
       for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
-        compressor.compress(
+        compressor.compress( // 怎么压缩的就先不管了
             content, compressed, Math.min(chunkSize, content.length - compressed), fieldsStream);
       }
     } else {
@@ -265,21 +265,21 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     }
 
     // reset
-    docBase += numBufferedDocs;
-    numBufferedDocs = 0;
-    bufferedDocs.reset();
+    docBase += numBufferedDocs; // 更新 docBase
+    numBufferedDocs = 0;        // 清空docId的偏移
+    bufferedDocs.reset();       // 清空buffer
   }
 
-  @Override
-  public void writeField(FieldInfo info, IndexableField field) throws IOException {
+  @Override // 在StoredFieldsConsumer中使用  // writeField只是把内容写到了自身的缓存里 bufferedDocs, 并且更新numStoredFieldsInDoc
+  public void writeField(FieldInfo info, IndexableField field) throws IOException { // 写入的是field, 可以是不同的field
+                                                                // 在314行的 infoAndBits, 就会记录处理的是哪个field
+    ++numStoredFieldsInDoc; // 处理这个doc， 又要处理一个field了
 
-    ++numStoredFieldsInDoc;
-
-    int bits = 0;
+    int bits = 0; // 这个field的数据类型的编码
     final BytesRef bytes;
     final String string;
 
-    Number number = field.numericValue();
+    Number number = field.numericValue(); // 看看是否有数值类型
     if (number != null) {
       if (number instanceof Byte || number instanceof Short || number instanceof Integer) {
         bits = NUMERIC_INT;
@@ -310,11 +310,11 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
         }
       }
     }
-
+    // info.number标识 field的内部序号。segment内部的. infoAndBites 是将这两者合并，合并写到底层
     final long infoAndBits = (((long) info.number) << TYPE_BITS) | bits;
     bufferedDocs.writeVLong(infoAndBits);
-
-    if (bytes != null) {
+    // output 数据， bufferedDocs本质是 DataOutput，只不过是加了缓存的，等待其他调用来flush
+    if (bytes != null) { // 写入缓存：数据的长度， 数据本身
       bufferedDocs.writeVInt(bytes.length);
       bufferedDocs.writeBytes(bytes.bytes, bytes.offset, bytes.length);
     } else if (string != null) {
@@ -479,7 +479,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
   @Override
   public void finish(int numDocs) throws IOException {
     if (numBufferedDocs > 0) {
-      flush(true);
+      flush(true); // 先将这个类的缓存 写入 到 IndexWriter, 让它帮忙压缩下, 然后调用indexWriter.flush, 促使indexWriter将自己的压缩数据写到真实文件中
     } else {
       assert bufferedDocs.size() == 0;
     }
@@ -487,7 +487,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
       throw new RuntimeException(
           "Wrote " + docBase + " docs, finish called with numDocs=" + numDocs);
     }
-    indexWriter.finish(numDocs, fieldsStream.getFilePointer(), metaStream);
+    indexWriter.finish(numDocs, fieldsStream.getFilePointer(), metaStream);//调用indexWriter.flush,将indexWriter的压缩数据写到真实的fieldsStreama,metaStream文件
     metaStream.writeVLong(numChunks);
     metaStream.writeVLong(numDirtyChunks);
     metaStream.writeVLong(numDirtyDocs);

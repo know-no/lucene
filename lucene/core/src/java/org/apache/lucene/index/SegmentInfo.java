@@ -35,7 +35,7 @@ import org.apache.lucene.util.Version;
 
 /**
  * Information about a segment such as its name, directory, and files related to the segment.
- *
+ * // 段文件信息（segmentInfo）.si索引文件, 而SegmentInfos是很多个段描述信息的集合体
  * @lucene.experimental
  */
 public final class SegmentInfo {

@@ -170,7 +170,7 @@ public abstract class Directory implements Closeable {
    * Copies an existing {@code src} file from directory {@code from} to a non-existent file {@code
    * dest} in this directory.
    */
-  public void copyFrom(Directory from, String src, String dest, IOContext context)
+  public void copyFrom(Directory from, String src, String dest, IOContext context) // 应该有更好的方式吧. 0拷贝这种
       throws IOException {
     boolean success = false;
     try (IndexInput is = from.openInput(src, context);

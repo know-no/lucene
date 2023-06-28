@@ -18,11 +18,7 @@ package org.apache.lucene.store;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.LongBuffer;
+import java.nio.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,31 +47,31 @@ public final class ByteBuffersDataInput extends DataInput
    * Read data from a set of contiguous buffers. All data buffers except for the last one must have
    * an identical remaining number of bytes in the buffer (that is a power of two). The last buffer
    * can be of an arbitrary remaining length.
-   */
+   */ // 最后一个buffer, 可能数据量不是2^x
   public ByteBuffersDataInput(List<ByteBuffer> buffers) {
     ensureAssumptions(buffers);
 
     this.blocks =
-        buffers.stream()
+        buffers.stream() // jdk的ByteBuffer默认是大端
             .map(buf -> buf.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN))
             .toArray(ByteBuffer[]::new);
     // pre-allocate these arrays and create the view buffers lazily
     this.floatBuffers = new FloatBuffer[blocks.length * Float.BYTES];
     this.longBuffers = new LongBuffer[blocks.length * Long.BYTES];
     if (blocks.length == 1) {
-      this.blockBits = 32;
-      this.blockMask = ~0;
+      this.blockBits = 32;  // 代表一个block中可以存多少数据byte, 2^blockBits. 直接用32, 块的最大可能大小.
+      this.blockMask = ~0;  // ~ 0 == -1 = 0xFFFF
     } else {
-      final int blockBytes = determineBlockPage(buffers);
-      this.blockBits = Integer.numberOfTrailingZeros(blockBytes);
+      final int blockBytes = determineBlockPage(buffers); // 一个buffer的总大小
+      this.blockBits = Integer.numberOfTrailingZeros(blockBytes); // 因为一定是2^x方, 所以直接取末尾0个数
       this.blockMask = (1 << blockBits) - 1;
     }
 
-    this.size = Arrays.stream(blocks).mapToLong(block -> block.remaining()).sum();
+    this.size = Arrays.stream(blocks).mapToLong(Buffer::remaining).sum();
 
     // The initial "position" of this stream is shifted by the position of the first block.
-    this.offset = blocks[0].position();
-    this.pos = offset;
+    this.offset = blocks[0].position(); // 从blocks 0 开始读取
+    this.pos = offset; // pos 是在全部buffer中的位置, 所以要求除了最后一个buffer一定得是固定大小
   }
 
   public long size() {
@@ -86,15 +82,15 @@ public final class ByteBuffersDataInput extends DataInput
   public long ramBytesUsed() {
     // Return a rough estimation for allocated blocks. Note that we do not make
     // any special distinction for what the type of buffer is (direct vs. heap-based).
-    return RamUsageEstimator.NUM_BYTES_OBJECT_REF * blocks.length
-        + Arrays.stream(blocks).mapToLong(buf -> buf.capacity()).sum();
+    return (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * blocks.length
+        + Arrays.stream(blocks).mapToLong(Buffer::capacity).sum();
   }
 
   @Override
   public byte readByte() throws EOFException {
     try {
-      ByteBuffer block = blocks[blockIndex(pos)];
-      byte v = block.get(blockOffset(pos));
+      ByteBuffer block = blocks[blockIndex(pos)]; // blockIndex: pos 整除 每个buffer大小, 商就是buffers的index
+      byte v = block.get(blockOffset(pos)); // 从具体的buffer中取到具体的值
       pos++;
       return v;
     } catch (IndexOutOfBoundsException e) {
@@ -126,7 +122,7 @@ public final class ByteBuffersDataInput extends DataInput
         // Update pos early on for EOF detection on output buffer, then try to get buffer content.
         pos += chunk;
         block.limit(blockOffset + chunk);
-        buffer.put(block);
+        buffer.put(block); // buffer读取 block到limit
 
         len -= chunk;
       }
@@ -165,12 +161,12 @@ public final class ByteBuffersDataInput extends DataInput
       }
     }
   }
-
+  //  说是为了加快 short, int, long的读取, 不必一次读一个byte.
   @Override
   public short readShort() throws IOException {
     int blockOffset = blockOffset(pos);
-    if (blockOffset + Short.BYTES <= blockMask) {
-      short v = blocks[blockIndex(pos)].getShort(blockOffset);
+    if (blockOffset + Short.BYTES <= blockMask) { // short存在于同一个buffer中, 调用子类的方法.如果short存在于两个buffer中
+      short v = blocks[blockIndex(pos)].getShort(blockOffset); // 如buffer大小是4, 前三个存的是但byte, 后面是short,short跨越了buffer
       pos += Short.BYTES;
       return v;
     } else {
@@ -216,7 +212,7 @@ public final class ByteBuffersDataInput extends DataInput
       return blocks[blockIndex(absPos)].getShort(blockOffset);
     } else {
       return (short) ((readByte(pos) & 0xFF) | (readByte(pos + 1) & 0xFF) << 8);
-    }
+    } // (byte & 0xFF) << 8
   }
 
   @Override
@@ -229,7 +225,7 @@ public final class ByteBuffersDataInput extends DataInput
       return ((readByte(pos) & 0xFF)
           | (readByte(pos + 1) & 0xFF) << 8
           | (readByte(pos + 2) & 0xFF) << 16
-          | (readByte(pos + 3) << 24));
+          | (readByte(pos + 3) << 24)); // 很明显看出来是小端
     }
   }
 
@@ -264,11 +260,11 @@ public final class ByteBuffersDataInput extends DataInput
     try {
       while (len > 0) {
         FloatBuffer floatBuffer = getFloatBuffer(pos);
-        floatBuffer.position(blockOffset(pos) >> 2);
+        floatBuffer.position(blockOffset(pos) >> 2); // 游标的buffer内位置, 第二维坐标, 除4
         int chunk = Math.min(len, floatBuffer.remaining());
         if (chunk == 0) {
           // read a single float spanning the boundary between two buffers
-          arr[off] = Float.intBitsToFloat(readInt(pos - offset));
+          arr[off] = Float.intBitsToFloat(readInt(pos - offset)); // pos - offset是因为readInt需要的是相对坐标
           off++;
           len--;
           pos += Float.BYTES;
@@ -283,7 +279,7 @@ public final class ByteBuffersDataInput extends DataInput
         off += chunk;
       }
     } catch (BufferUnderflowException | IndexOutOfBoundsException e) {
-      if (pos - offset + Float.BYTES > size()) {
+      if (pos - offset + Float.BYTES > size()) { // 指针溢出
         throw new EOFException();
       } else {
         throw e; // Something is wrong.
@@ -325,9 +321,9 @@ public final class ByteBuffersDataInput extends DataInput
 
   private FloatBuffer getFloatBuffer(long pos) {
     // This creates a separate FloatBuffer for each observed combination of ByteBuffer/alignment
-    int bufferIndex = blockIndex(pos);
-    int alignment = (int) pos & 0x3;
-    int floatBufferIndex = bufferIndex * Float.BYTES + alignment;
+    int bufferIndex = blockIndex(pos); // 获取当前游标所在的buffer
+    int alignment = (int) pos & 0x3; //  对 2^2 取余, pos位置, 待会还得加上
+    int floatBufferIndex = bufferIndex *  Float.BYTES + alignment; // 对每个ByteBuffer/alignment组合创建一个独特的view
     if (floatBuffers[floatBufferIndex] == null) {
       ByteBuffer dup = blocks[bufferIndex].duplicate();
       dup.position(alignment);
@@ -381,7 +377,7 @@ public final class ByteBuffersDataInput extends DataInput
               this));
     }
 
-    return new ByteBuffersDataInput(sliceBufferList(Arrays.asList(this.blocks), offset, length));
+    return new ByteBuffersDataInput(sliceBufferList(Arrays.asList(this.blocks), offset, length)); // 牛逼
   }
 
   @Override
@@ -397,7 +393,7 @@ public final class ByteBuffersDataInput extends DataInput
   }
 
   private final int blockIndex(long pos) {
-    return Math.toIntExact(pos >> blockBits);
+    return Math.toIntExact(pos >> blockBits); // 取高位, pos / 2^blockBits
   }
 
   private final int blockOffset(long pos) {
@@ -446,7 +442,7 @@ public final class ByteBuffersDataInput extends DataInput
   }
 
   static int determineBlockPage(List<ByteBuffer> buffers) {
-    ByteBuffer first = buffers.get(0);
+    ByteBuffer first = buffers.get(0); // 查看一个buffer的总size
     final int blockPage = Math.toIntExact((long) first.position() + first.remaining());
     return blockPage;
   }
@@ -469,13 +465,13 @@ public final class ByteBuffersDataInput extends DataInput
       int blockBits = Integer.numberOfTrailingZeros(blockBytes);
       long blockMask = (1L << blockBits) - 1;
 
-      int endOffset = Math.toIntExact(absEnd & blockMask);
+      int endOffset = Math.toIntExact(absEnd & blockMask); // 取块内坐标
 
       ArrayList<ByteBuffer> cloned =
           buffers
               .subList(
-                  Math.toIntExact(absStart / blockBytes),
-                  Math.toIntExact(absEnd / blockBytes + (endOffset == 0 ? 0 : 1)))
+                  Math.toIntExact(absStart / blockBytes), // 起始块
+                  Math.toIntExact(absEnd / blockBytes + (endOffset == 0 ? 0 : 1))) // 结束块. endOffset == 0, 可以少加载一块
               .stream()
               .map(buf -> buf.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN))
               .collect(Collectors.toCollection(ArrayList::new));

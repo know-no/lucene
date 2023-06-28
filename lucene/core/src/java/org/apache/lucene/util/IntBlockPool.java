@@ -19,11 +19,11 @@ package org.apache.lucene.util;
 import java.util.Arrays;
 
 /**
- * A pool for int blocks similar to {@link ByteBlockPool}
- *
+ * A pool for int blocks similar to {@link ByteBlockPool}//非常类似于ByteBlockPool,但是记录的不是bytes内容,而是偏移量,所以buffers类型里是int
+ * // 代码里用较多的是和ByteBlockPool结合，后者存term的倒排信息(docid,feq,prox,etc),这些信息编码成bytes内容,写入到后者，前者存term的信息在后者里的位置(或者位置偏移量）
  * @lucene.internal
  */
-public final class IntBlockPool {
+public final class IntBlockPool {// 存储term(域值)的信息，在MemoryIndex中，使用此类对term在文档中的位置、payload数据进行存储，它即MemoryIndex中的倒排表，它的数据就是用这个类的对象存储的
   public static final int INT_BLOCK_SHIFT = 13;
   public static final int INT_BLOCK_SIZE = 1 << INT_BLOCK_SHIFT;
   public static final int INT_BLOCK_MASK = INT_BLOCK_SIZE - 1;
@@ -59,14 +59,14 @@ public final class IntBlockPool {
    * array of buffers currently used in the pool. Buffers are allocated if needed don't modify this
    * outside of this class
    */
-  public int[][] buffers = new int[10][];
+  public int[][] buffers = new int[10][]; // buffer,存储着所有的terms的域值信息
 
   /** index into the buffers array pointing to the current buffer used as the head */
   private int bufferUpto = -1;
   /** Pointer to the current position in head buffer */
-  public int intUpto = INT_BLOCK_SIZE;
+  public int intUpto = INT_BLOCK_SIZE; // 在head buffer 中的指针
   /** Current head buffer */
-  public int[] buffer;
+  public int[] buffer; // header buffer的引用
   /** Current head offset */
   public int intOffset = -INT_BLOCK_SIZE;
 

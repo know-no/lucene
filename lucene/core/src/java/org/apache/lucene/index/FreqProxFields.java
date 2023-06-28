@@ -30,7 +30,7 @@ import org.apache.lucene.util.BytesRefBuilder;
  * Implements limited (iterators only, no stats) {@link Fields} interface over the in-RAM buffered
  * fields/terms/postings, to flush postings through the PostingsFormat.
  */
-class FreqProxFields extends Fields {
+class FreqProxFields extends Fields { // 迭代field所有的term，对每一个term用FreqProxTermsEnum封装，FreqProxTermsEnum根据是否只需要stream0的数据还是都需要分别创建FreqProxDocsEnum和FreqProxPostingsEnum最终完成倒排数据的读取。
   final Map<String, FreqProxTermsWriterPerField> fields = new LinkedHashMap<>();
 
   public FreqProxFields(List<FreqProxTermsWriterPerField> fieldList) {
@@ -46,9 +46,9 @@ class FreqProxFields extends Fields {
   }
 
   @Override
-  public Terms terms(String field) throws IOException {
+  public Terms terms(String field) throws IOException { // name 找 Terms
     FreqProxTermsWriterPerField perField = fields.get(field);
-    return perField == null ? null : new FreqProxTerms(perField);
+    return perField == null ? null : new FreqProxTerms(perField);// 字段中所有term的倒排信息的获取逻辑都在 FreqProxTerms 中
   }
 
   @Override
@@ -56,15 +56,15 @@ class FreqProxFields extends Fields {
     throw new UnsupportedOperationException();
   }
 
-  private static class FreqProxTerms extends Terms {
-    final FreqProxTermsWriterPerField terms;
+  private static class FreqProxTerms extends Terms {// 封装了单个Field的信息
+    final FreqProxTermsWriterPerField terms;//包含了我们在内存中倒排的所有信息
 
     public FreqProxTerms(FreqProxTermsWriterPerField terms) {
       this.terms = terms;
     }
 
     @Override
-    public TermsEnum iterator() {
+    public TermsEnum iterator() {//返回term的迭代器
       FreqProxTermsEnum termsEnum = new FreqProxTermsEnum(terms);
       termsEnum.reset();
       return termsEnum;
@@ -90,7 +90,7 @@ class FreqProxFields extends Fields {
       throw new UnsupportedOperationException();
     }
 
-    @Override
+    @Override // 判断
     public boolean hasFreqs() {
       return terms.indexOptions.compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
     }
@@ -117,19 +117,19 @@ class FreqProxFields extends Fields {
       return terms.sawPayloads;
     }
   }
-
+  // 1. 迭代获取所有的term  2. 使用postings 方法获取当时所在term的倒排数据链
   private static class FreqProxTermsEnum extends BaseTermsEnum {
     final FreqProxTermsWriterPerField terms;
-    final int[] sortedTermIDs;
-    final FreqProxPostingsArray postingsArray;
-    final BytesRef scratch = new BytesRef();
+    final int[] sortedTermIDs;//获取排序过后的termId,下标是ord,值是term的id//
+    final FreqProxPostingsArray postingsArray;//之前遗留的问题： 最后处理的term的文档的id和频率没有写入bytePool，它存储在postingsArray中
+    final BytesRef scratch = new BytesRef();//当前处理的term
     final int numTerms;
-    int ord;
+    int ord; // ord, 递增的数字，用ord， 从sortedTermIDs里获取对应的term
 
     FreqProxTermsEnum(FreqProxTermsWriterPerField terms) {
       this.terms = terms;
-      this.numTerms = terms.getNumTerms();
-      sortedTermIDs = terms.getSortedTermIDs();
+      this.numTerms = terms.getNumTerms();//获取总共有多少个独立的term
+      sortedTermIDs = terms.getSortedTermIDs();//获取排序过后的termId,下标是ord,值是term的id//
       assert sortedTermIDs != null;
       postingsArray = (FreqProxPostingsArray) terms.postingsArray;
     }
@@ -143,14 +143,14 @@ class FreqProxFields extends Fields {
       // TODO: we could instead keep the BytesRefHash
       // intact so this is a hash lookup
 
-      // binary search:
+      // binary search: // 为啥可以用二分法搜索， 因为term的值内容在写入bytepool之前，经过了sort,所以它是有序的
       int lo = 0;
       int hi = numTerms - 1;
       while (hi >= lo) {
         int mid = (lo + hi) >>> 1;
-        int textStart = postingsArray.textStarts[sortedTermIDs[mid]];
-        terms.bytePool.setBytesRef(scratch, textStart);
-        int cmp = scratch.compareTo(text);
+        int textStart = postingsArray.textStarts[sortedTermIDs[mid]]; // 获取次序mid对应的term的值内容本身在bytepool的位置
+        terms.bytePool.setBytesRef(scratch, textStart); // 可以从里面读取，并且放到 scratch里面
+        int cmp = scratch.compareTo(text); // 和我们要搜的那个对比，
         if (cmp < 0) {
           lo = mid + 1;
         } else if (cmp > 0) {
@@ -159,15 +159,15 @@ class FreqProxFields extends Fields {
           // found:
           ord = mid;
           assert term().compareTo(text) == 0;
-          return SeekStatus.FOUND;
+          return SeekStatus.FOUND; // 找到的时候，就直接返回了
         }
       }
 
       // not found:
-      ord = lo;
-      if (ord >= numTerms) {
-        return SeekStatus.END;
-      } else {
+      ord = lo; // 放到最小的lo上
+      if (ord >= numTerms) { // 可能发生吗？ 可能的， 比如 numTerms = 1， 则lo和hi都等于0，且搜的term字典序大于这个唯一的term
+        return SeekStatus.END; // 则lo， 会等于1.
+      } else { // 还是要把当前的第一个小于所查的那个赋值来
         int textStart = postingsArray.textStarts[sortedTermIDs[ord]];
         terms.bytePool.setBytesRef(scratch, textStart);
         assert term().compareTo(text) > 0;
@@ -176,7 +176,7 @@ class FreqProxFields extends Fields {
     }
 
     @Override
-    public void seekExact(long ord) {
+    public void seekExact(long ord) { // 这个ord如果超了就 直接runtime异常了呀
       this.ord = (int) ord;
       int textStart = postingsArray.textStarts[sortedTermIDs[this.ord]];
       terms.bytePool.setBytesRef(scratch, textStart);
@@ -205,7 +205,7 @@ class FreqProxFields extends Fields {
     }
 
     @Override
-    public int docFreq() {
+    public int docFreq() { // per-term不存储doc freq
       // We do not store this per-term, and we cannot
       // implement this at merge time w/o an added pass
       // through the postings:
@@ -219,13 +219,13 @@ class FreqProxFields extends Fields {
       // through the postings:
       throw new UnsupportedOperationException();
     }
-
-    @Override
+    //获取倒排信息的迭代器。如果需要需要stream0中的倒排信息则使用FreqProxDocsEnum，否则使用FreqProxPostingsEnum。
+    @Override // 根据传递的flags判断是否需要 position 信息， 不同情况下用不同的  PostingsEnum 子类
     public PostingsEnum postings(PostingsEnum reuse, int flags) {
       if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)) {
         FreqProxPostingsEnum posEnum;
 
-        if (!terms.hasProx) {
+        if (!terms.hasProx) { // 算是一个防御式编程的方式吧
           // Caller wants positions but we didn't index them;
           // don't lie:
           throw new IllegalArgumentException("did not index positions");
@@ -237,26 +237,26 @@ class FreqProxFields extends Fields {
           throw new IllegalArgumentException("did not index offsets");
         }
 
-        if (reuse instanceof FreqProxPostingsEnum) {
+        if (reuse instanceof FreqProxPostingsEnum) { // 已经有了这个值， 只是重复读一下
           posEnum = (FreqProxPostingsEnum) reuse;
-          if (posEnum.postingsArray != postingsArray) {
+          if (posEnum.postingsArray != postingsArray) {//进一步判断postingsArray来确定是有复用reuse
             posEnum = new FreqProxPostingsEnum(terms, postingsArray);
           }
         } else {
           posEnum = new FreqProxPostingsEnum(terms, postingsArray);
         }
-        posEnum.reset(sortedTermIDs[ord]);
+        posEnum.reset(sortedTermIDs[ord]); // 好奇， 为什么不做成 PostingsEnum 的父类方法
         return posEnum;
       }
 
       FreqProxDocsEnum docsEnum;
-
+      // 判断, 需要freq， 但是不含有freq， 直接标错
       if (!terms.hasFreq && PostingsEnum.featureRequested(flags, PostingsEnum.FREQS)) {
         // Caller wants freqs but we didn't index them;
         // don't lie:
         throw new IllegalArgumentException("did not index freq");
       }
-
+      // 否则， 只有 docId 和 freq
       if (reuse instanceof FreqProxDocsEnum) {
         docsEnum = (FreqProxDocsEnum) reuse;
         if (docsEnum.postingsArray != postingsArray) {
@@ -294,12 +294,12 @@ class FreqProxFields extends Fields {
       };
     }
   }
-
+// 只需要term所在文档id及其在文档中的出现频率使用FreqProxDocsEnum。
   private static class FreqProxDocsEnum extends PostingsEnum {
 
     final FreqProxTermsWriterPerField terms;
-    final FreqProxPostingsArray postingsArray;
-    final ByteSliceReader reader = new ByteSliceReader();
+    final FreqProxPostingsArray postingsArray; // 这个值， 也是上层从terms拿出来，然后赋值的
+    final ByteSliceReader reader = new ByteSliceReader(); // SliceReader从bytepool的一条stream里面读取的
     final boolean readTermFreq;
     int docID = -1;
     int freq;
@@ -314,7 +314,7 @@ class FreqProxFields extends Fields {
     }
 
     public void reset(int termID) {
-      this.termID = termID;
+      this.termID = termID; // 定位到这个termID
       terms.initReader(reader, termID, 0);
       ended = false;
       docID = -1;
@@ -359,13 +359,13 @@ class FreqProxFields extends Fields {
     @Override
     public int nextDoc() throws IOException {
       if (docID == -1) {
-        docID = 0;
+        docID = 0;//哈哈哈哈哈，不论如何，先设置为0，是为了方便377行的 docID += code或379行的 += 逻辑，差值存储，第一个是原值，所以得加0，不能-1
       }
       if (reader.eof()) {
         if (ended) {
           return NO_MORE_DOCS;
-        } else {
-          ended = true;
+        } else { // 虽然读到末尾没数据可以读了; 见FreqProxTermsWriterPerField的addTerm：120行
+          ended = true; // 并且，写入的时候，写入的是lastDocIDs[]，和termFreqs[], 还是原值
           docID = postingsArray.lastDocIDs[termID];
           if (readTermFreq) {
             freq = postingsArray.termFreqs[termID];
@@ -376,7 +376,7 @@ class FreqProxFields extends Fields {
         if (!readTermFreq) {
           docID += code;
         } else {
-          docID += code >>> 1;
+          docID += code >>> 1; // 和写入的时候呼应， (docID | 1/0)判断是否有freq信息
           if ((code & 1) != 0) {
             freq = 1;
           } else {
@@ -419,7 +419,7 @@ class FreqProxFields extends Fields {
     boolean hasPayload;
     BytesRefBuilder payload = new BytesRefBuilder();
 
-    public FreqProxPostingsEnum(
+    public FreqProxPostingsEnum( //它和FreqProxDocsEnum的差别是，后者只需要term所在文档id及其在文档中的出现频率，而它还有position信息,以及可能的payloads
         FreqProxTermsWriterPerField terms, FreqProxPostingsArray postingsArray) {
       this.terms = terms;
       this.postingsArray = postingsArray;
@@ -452,7 +452,7 @@ class FreqProxFields extends Fields {
       if (docID == -1) {
         docID = 0;
       }
-      while (posLeft != 0) {
+      while (posLeft != 0) { // 如果当前docID的stream1的信息还没处理完，则通过  nextPosition 都忽略掉
         nextPosition();
       }
 
@@ -460,7 +460,7 @@ class FreqProxFields extends Fields {
         if (ended) {
           return NO_MORE_DOCS;
         } else {
-          ended = true;
+          ended = true; // 我直接来个 同理可得
           docID = postingsArray.lastDocIDs[termID];
           freq = postingsArray.termFreqs[termID];
         }

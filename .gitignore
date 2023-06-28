@@ -11,6 +11,7 @@ gradle/wrapper/gradle-wrapper.jar
 /.idea/
 #    IntelliJ creates this folder, ignore.
 /dev-tools/missing-doclet/out/
+*.iml
 
 # Eclipse
 /.project

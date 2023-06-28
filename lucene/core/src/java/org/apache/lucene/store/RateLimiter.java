@@ -22,7 +22,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 /**
  * Abstract base class to rate limit IO. Typically implementations are shared across multiple
  * IndexInputs or IndexOutputs (for example those involved all merging). Those IndexInputs and
- * IndexOutputs would call {@link #pause} whenever the have read or written more than {@link
+ * IndexOutputs would call {@link #pause} whenever they have read or written more than {@link
  * #getMinPauseCheckBytes} bytes.
  */
 public abstract class RateLimiter {
@@ -108,7 +108,7 @@ public abstract class RateLimiter {
         // Time we should sleep until; this is purely instantaneous
         // rate (just adds seconds onto the last time we had paused to);
         // maybe we should also offer decayed recent history one?
-        targetNS = lastNS + (long) (1000000000 * secondsToPause);
+        targetNS = lastNS + (long) (1_000_000_000 * secondsToPause);
 
         if (startNS >= targetNS) {
           // OK, current time is already beyond the target sleep time,
@@ -136,13 +136,13 @@ public abstract class RateLimiter {
             // this up to 1 msec:
             int sleepNS;
             int sleepMS;
-            if (pauseNS > 100000L * Integer.MAX_VALUE) {
+            if (pauseNS > 100_000L * Integer.MAX_VALUE) {
               // Not really practical (sleeping for 25 days) but we shouldn't overflow int:
               sleepMS = Integer.MAX_VALUE;
               sleepNS = 0;
             } else {
-              sleepMS = (int) (pauseNS / 1000000);
-              sleepNS = (int) (pauseNS % 1000000);
+              sleepMS = (int) (pauseNS / 1_000_000);
+              sleepNS = (int) (pauseNS % 1_000_000);
             }
             Thread.sleep(sleepMS, sleepNS);
           } catch (InterruptedException ie) {

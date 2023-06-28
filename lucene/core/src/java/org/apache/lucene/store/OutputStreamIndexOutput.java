@@ -44,7 +44,7 @@ public class OutputStreamIndexOutput extends IndexOutput {
     super(resourceDescription, name);
     if (bufferSize < Long.BYTES) {
       throw new IllegalArgumentException("Buffer size too small, need: " + Long.BYTES);
-    }
+    } // 包装了的 outputstream
     this.os = new XBufferedOutputStream(new CheckedOutputStream(out, crc), bufferSize);
   }
 
@@ -54,7 +54,7 @@ public class OutputStreamIndexOutput extends IndexOutput {
     bytesWritten++;
   }
 
-  @Override
+  @Override // 写入byte[], byte[]会在os.write()被分块为8kb, 然后分批写
   public final void writeBytes(byte[] b, int offset, int length) throws IOException {
     os.write(b, offset, length);
     bytesWritten += length;
@@ -87,9 +87,9 @@ public class OutputStreamIndexOutput extends IndexOutput {
       // because there are more bugs around this! See:
       // # https://bugs.openjdk.java.net/browse/JDK-7015589
       // # https://bugs.openjdk.java.net/browse/JDK-8054565
-      if (!flushedOnClose) {
-        flushedOnClose = true; // set this BEFORE calling flush!
-        o.flush();
+      if (!flushedOnClose) { // 不太明白为什么,看起来是为了避免call twice的bug. o.flush会被调用两次, 其中一次可能
+        flushedOnClose = true; // set this BEFORE calling flush!  会在已经关闭的内部stream上调用flush, 致使抛出
+        o.flush();  // 第二次的调用抛出异常,实际上它应该是no effect
       }
     }
   }
@@ -114,14 +114,14 @@ public class OutputStreamIndexOutput extends IndexOutput {
 
     private void flushIfNeeded(int len) throws IOException {
       if (len > buf.length - count) {
-        flush();
+        flush(); // 不保证真的落盘, 而是os的缓存
       }
     }
 
     void writeShort(short i) throws IOException {
       flushIfNeeded(Short.BYTES);
-      BitUtil.VH_LE_SHORT.set(buf, count, i);
-      count += Short.BYTES;
+      BitUtil.VH_LE_SHORT.set(buf, count, i); // 以小端方式, 高效读写short进入或者出来数组,原子性
+      count += Short.BYTES; // 并发调用 writeShort方法好像不能保证 count的原子性,所以不是线程安全的
     }
 
     void writeInt(int i) throws IOException {

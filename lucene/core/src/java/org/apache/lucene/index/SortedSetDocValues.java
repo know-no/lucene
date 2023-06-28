@@ -68,7 +68,7 @@ public abstract class SortedSetDocValues extends DocValuesIterator {
    * @param ord ordinal to lookup
    * @see #nextOrd
    */
-  public abstract BytesRef lookupOrd(long ord) throws IOException;
+  public abstract BytesRef lookupOrd(long ord) throws IOException; // 依据 ord, 返回term
 
   /**
    * Returns the number of unique values.

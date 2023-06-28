@@ -172,7 +172,7 @@ public final class RamUsageEstimator {
       COMPRESSED_REFS_ENABLED = compressedOops;
       NUM_BYTES_OBJECT_ALIGNMENT = objectAlignment;
       // reference size is 4, if we have compressed oops:
-      NUM_BYTES_OBJECT_REF = COMPRESSED_REFS_ENABLED ? 4 : 8;
+      NUM_BYTES_OBJECT_REF = COMPRESSED_REFS_ENABLED ? 4 : 8; //  指针压缩
       // "best guess" based on reference size:
       NUM_BYTES_OBJECT_HEADER = 8 + NUM_BYTES_OBJECT_REF;
       // array header is NUM_BYTES_OBJECT_HEADER + NUM_BYTES_INT, but aligned (object alignment):

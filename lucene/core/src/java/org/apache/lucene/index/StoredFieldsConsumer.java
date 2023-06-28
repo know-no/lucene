@@ -25,7 +25,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 
-class StoredFieldsConsumer {
+class StoredFieldsConsumer { // 正排索引文件
   final Codec codec;
   final Directory directory;
   final SegmentInfo info;
@@ -34,14 +34,14 @@ class StoredFieldsConsumer {
   // it's cleaner than checking if the writer is null all over the place
   Accountable accountable = Accountable.NULL_ACCOUNTABLE;
   private int lastDoc;
-
+    // 构建Consumer
   StoredFieldsConsumer(Codec codec, Directory directory, SegmentInfo info) {
     this.codec = codec;
     this.directory = directory;
     this.info = info;
     this.lastDoc = -1;
   }
-
+    // 根据codec，初始化  StoredFieldWriter，比如90
   protected void initStoredFieldsWriter() throws IOException {
     if (writer
         == null) { // TODO can we allocate this in the ctor? we call start document for every doc
@@ -50,15 +50,15 @@ class StoredFieldsConsumer {
       accountable = writer;
     }
   }
-
+  // 开始处理一个doc
   void startDocument(int docID) throws IOException {
     assert lastDoc < docID;
-    initStoredFieldsWriter();
-    while (++lastDoc < docID) {
+    initStoredFieldsWriter(); // 确保初始化好了
+    while (++lastDoc < docID) {// 确保都是连续的，如果突然出现间隔， 也要把之前的填充上
       writer.startDocument();
       writer.finishDocument();
     }
-    writer.startDocument();
+    writer.startDocument(); // 查看Lucene90CompressingStoredFieldsWriter 并没做任何事情
   }
 
   void writeField(FieldInfo info, IndexableField field) throws IOException {
@@ -76,7 +76,7 @@ class StoredFieldsConsumer {
       ++lastDoc;
     }
   }
-
+  // 持久化下去， 记录segment里的最大doc
   void flush(SegmentWriteState state, Sorter.DocMap sortMap) throws IOException {
     try {
       writer.finish(state.segmentInfo.maxDoc());

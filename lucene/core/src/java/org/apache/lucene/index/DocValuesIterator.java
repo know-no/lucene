@@ -18,7 +18,7 @@ package org.apache.lucene.index;
 
 import java.io.IOException;
 import org.apache.lucene.search.DocIdSetIterator;
-
+// DocValuesIterator也继承docIdIterator, 说明就取值方式而言,也是通过 id -> value
 abstract class DocValuesIterator extends DocIdSetIterator {
 
   /**

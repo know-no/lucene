@@ -332,9 +332,9 @@ public abstract class FSDirectory extends BaseDirectory {
       // This is a silly heuristic to try to avoid O(N^2), where N = number of files pending
       // deletion, behaviour on Windows:
       int count = opsSinceLastDelete.incrementAndGet();
-      if (count >= pendingDeletes.size()) {
+      if (count >= pendingDeletes.size()) { // ??? 为什么要判断这个 ? 根据代码逻辑, 只有累积到一定次数之后, 才会执行删除代码 .
         opsSinceLastDelete.addAndGet(-count);
-        deletePendingFiles();
+        deletePendingFiles(); // pendingDeletes只会在这里增加
       }
     }
   }
@@ -388,14 +388,14 @@ public abstract class FSDirectory extends BaseDirectory {
     FSIndexOutput(String name, OpenOption... options) throws IOException {
       super(
           "FSIndexOutput(path=\"" + directory.resolve(name) + "\")",
-          name,
+          name, // 包装其他流, 包装了文件流, 重写write方法, 保证每次写入的下层的大小不超过8KB, 下层bufferedStream,每次接受的最大是8KB
           new FilterOutputStream(Files.newOutputStream(directory.resolve(name), options)) {
             // This implementation ensures, that we never write more than CHUNK_SIZE bytes:
             @Override
             public void write(byte[] b, int offset, int length) throws IOException {
               while (length > 0) {
                 final int chunk = Math.min(length, CHUNK_SIZE);
-                out.write(b, offset, chunk);
+                out.write(b, offset, chunk); // 文件流, 每次最多写8kb
                 length -= chunk;
                 offset += chunk;
               }

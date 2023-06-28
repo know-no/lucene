@@ -44,7 +44,7 @@ import org.apache.lucene.util.IOUtils;
  * NIOFSDirectory} will throw a {@link ClosedChannelException}. If your application uses either
  * {@link Thread#interrupt()} or {@link Future#cancel(boolean)} you should use the legacy {@code
  * RAFDirectory} from the Lucene {@code misc} module in favor of {@link NIOFSDirectory}.
- */
+ */ // 如果线程阻塞在io上, 而线程被interrupt的话, channel会立刻响应, 并且抛出ClosedByInterruptException,会导致channel关闭
 public class NIOFSDirectory extends FSDirectory {
 
   /**
@@ -75,7 +75,7 @@ public class NIOFSDirectory extends FSDirectory {
     ensureOpen();
     ensureCanRead(name);
     Path path = getDirectory().resolve(name);
-    FileChannel fc = FileChannel.open(path, StandardOpenOption.READ);
+    FileChannel fc = FileChannel.open(path, StandardOpenOption.READ);// 未加锁,应该是不需要加锁
     boolean success = false;
     try {
       final NIOFSIndexInput indexInput =
@@ -115,14 +115,14 @@ public class NIOFSDirectory extends FSDirectory {
         String resourceDesc, FileChannel fc, long off, long length, int bufferSize) {
       super(resourceDesc, bufferSize);
       this.channel = fc;
-      this.off = off;
+      this.off = off; // 可以截取channel中间的一部分来做 indexinput.
       this.end = off + length;
       this.isClone = true;
     }
 
     @Override
     public void close() throws IOException {
-      if (!isClone) {
+      if (!isClone) { // 至少用个引用计数法吧. clone出来的对象是没办法控制底层的channel关闭的
         channel.close();
       }
     }
@@ -164,17 +164,17 @@ public class NIOFSDirectory extends FSDirectory {
 
     @Override
     protected void readInternal(ByteBuffer b) throws IOException {
-      long pos = getFilePointer() + off;
+      long pos = getFilePointer() + off; // 真实的filepointer(或者说是上层的channel或者是indexinput的位置) + off
 
-      if (pos + b.remaining() > end) {
+      if (pos + b.remaining() > end) { // 本indexinput所剩下的内容不足以填满 b
         throw new EOFException("read past EOF: " + this);
       }
 
       try {
         int readLength = b.remaining();
         while (readLength > 0) {
-          final int toRead = Math.min(CHUNK_SIZE, readLength);
-          b.limit(b.position() + toRead);
+          final int toRead = Math.min(CHUNK_SIZE, readLength); // 每次读取min(chunk, 剩余)
+          b.limit(b.position() + toRead); // 提前移动limit游标,限制channel.read可以写入的最大量
           assert b.remaining() == toRead;
           final int i = channel.read(b, pos);
           if (i < 0) {

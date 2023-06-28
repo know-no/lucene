@@ -51,8 +51,8 @@ import org.apache.lucene.util.BytesRefBuilder;
  *   <li>After all documents have been written, {@link #finish(int)} is called for
  *       verification/sanity-checks.
  *   <li>Finally the writer is closed ({@link #close()})
- * </ol>
- *
+ * </ol> // 针对每个doc都要start, finish. 这之中, 还 startField, 以告知codec, 有多少个term,要写入这个field,并且, 是否要
+ *    // 写position, offset, payloads等等.  if offset and position 要被开启, 则需要调用addPositon
  * @lucene.experimental
  */
 public abstract class TermVectorsWriter implements Closeable, Accountable {
@@ -74,9 +74,9 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
 
   /**
    * Called before writing the terms of the field. {@link #startTerm(BytesRef, int)} will be called
-   * <code>numTerms</code> times.
+   * <code>numTerms</code> times. //numTerms 这个field的term的个数
    */
-  public abstract void startField(
+  public abstract void startField(  // 是否
       FieldInfo info, int numTerms, boolean positions, boolean offsets, boolean payloads)
       throws IOException;
 
@@ -84,7 +84,7 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
   public void finishField() throws IOException {}
   ;
 
-  /**
+  /** // 开始 field 的一个 term 的持久化: term freq,(position, offsets), 并且有几次freq,就要调用几次addPositon
    * Adds a term and its term frequency <code>freq</code>. If this field has positions and/or
    * offsets enabled, then {@link #addPosition(int, int, int, BytesRef)} will be called <code>freq
    * </code> times respectively.
@@ -92,9 +92,9 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
   public abstract void startTerm(BytesRef term, int freq) throws IOException;
 
   /** Called after a term and all its positions have been added. */
-  public void finishTerm() throws IOException {}
+  public void finishTerm() throws IOException {} // 结束一个term的处理
 
-  /** Adds a term position and offsets */
+  /** Adds a term position and offsets */  // 构建一个term的某一次的position 等信息, 有几次freq就要调用几次
   public abstract void addPosition(int position, int startOffset, int endOffset, BytesRef payload)
       throws IOException;
 
@@ -102,7 +102,7 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
    * Called before {@link #close()}, passing in the number of documents that were written. Note that
    * this is intentionally redundant (equivalent to the number of calls to {@link
    * #startDocument(int)}, but a Codec should check that this is the case to detect the JRE bug
-   * described in LUCENE-1282.
+   * described in LUCENE-1282. // 因为JRE的bug , 所以需要check,实际上可能是多余的check
    */
   public abstract void finish(int numDocs) throws IOException;
 
@@ -118,8 +118,8 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
    *
    * <p>NOTE: This API is extremely expert and subject to change or removal!!!
    *
-   * @lucene.internal
-   */
+   * @lucene.internal //高阶api,被IndexWriter调用来写segments从positions和offsets中读取所有的位置信息，其实就是从TermVectorsConsumerPerField#bytePool中读取 (这就是direct from indexer)
+   */                 // 一般不需要重写, 但是在lucene90Comreppseing重写了,
   // TODO: we should probably nuke this and make a more efficient 4.x format
   // PreFlex-RW could then be slow and buffer (it's only used in tests...)
   public void addProx(int numProx, DataInput positions, DataInput offsets) throws IOException {
@@ -138,7 +138,7 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
       } else {
         int code = positions.readVInt();
         position += code >>> 1;
-        if ((code & 1) != 0) {
+        if ((code & 1) != 0) { // positons在写入时候,做移了一位, 然后用1 标识有payoads, 0标识没有payloads
           // This position has a payload
           final int payloadLength = positions.readVInt();
 
@@ -162,10 +162,10 @@ public abstract class TermVectorsWriter implements Closeable, Accountable {
         endOffset = startOffset + offsets.readVInt();
         lastOffset = endOffset;
       }
-      addPosition(position, startOffset, endOffset, thisPayload);
-    }
+      addPosition(position, startOffset, endOffset, thisPayload); //子类实现的真正的添加 , 模板模式
+    } // 有多少次freq(即numProx),  就会写入多少次
   }
-
+  // ****** 一些跟merge相关的方法，再说 ******* //
   private static class TermVectorsMergeSub extends DocIDMerger.Sub {
     private final TermVectorsReader reader;
     private final int maxDoc;

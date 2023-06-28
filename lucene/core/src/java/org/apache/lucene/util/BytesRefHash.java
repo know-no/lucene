@@ -37,8 +37,8 @@ import org.apache.lucene.util.ByteBlockPool.DirectAllocator;
  *
  * @lucene.internal
  */
-public final class BytesRefHash implements Accountable {
-  private static final long BASE_RAM_BYTES =
+public final class BytesRefHash implements Accountable { // 将所有的 BytesRef 对象存储到一个连续的存储空间中，并且使得能在查询阶段达到 0(1)的时间复杂度。
+  private static final long BASE_RAM_BYTES =            // 类的解释: https://www.amazingkoala.com.cn/Lucene/gongjulei/2019/0218/32.html
       RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)
           +
           // size of Counter
@@ -48,15 +48,15 @@ public final class BytesRefHash implements Accountable {
 
   // the following fields are needed by comparator,
   // so package private to prevent access$-methods:
-  final ByteBlockPool pool;
-  int[] bytesStart;
+  final ByteBlockPool pool; // pool.bytesbuffer 存储着所有的 BytesRef
+  int[] bytesStart; // 下标是 termID，数组元素是 termID 对应的 BytesRef 值在 buffers[][]中的起始位置
 
   private int hashSize;
   private int hashHalfSize;
   private int hashMask;
-  private int count;
+  private int count; // count + 1的值是 存储了 BytesRef的个数.    三个数组的关系: ids -> bytesStart -> pool.buffer
   private int lastCount = -1;
-  private int[] ids;
+  private int[] ids; // 在初始化的时候,全部赋予了 -1 // 下标是 BytesRef 对利用 MurmurHash 算法计算出的 hash 值，ids[]数组元素则是 termID
   private final BytesStartArray bytesStartArray;
   private Counter bytesUsed;
 
@@ -243,32 +243,32 @@ public final class BytesRefHash implements Accountable {
    * @throws MaxBytesLengthExceededException if the given bytes are {@code > 2 +} {@link
    *     ByteBlockPool#BYTE_BLOCK_SIZE}
    */
-  public int add(BytesRef bytes) {
-    assert bytesStart != null : "Bytesstart is null - not initialized";
+  public int add(BytesRef bytes) { //如果之前没有处理过, 返回hash过的id. 如果处理过 返回1-id, 可以保证如果之前没hash过,
+    assert bytesStart != null : "Bytesstart is null - not initialized"; // 返回值永远大于等于0
     final int length = bytes.length;
     // final position
-    final int hashPos = findHash(bytes);
-    int e = ids[hashPos];
+    final int hashPos = findHash(bytes); // 返回murmurhash在hashsize下的slot
+    int e = ids[hashPos]; // 默认-1, 说明没有这个
 
     if (e == -1) {
       // new entry
-      final int len2 = 2 + bytes.length;
-      if (len2 + pool.byteUpto > BYTE_BLOCK_SIZE) {
-        if (len2 > BYTE_BLOCK_SIZE) {
+      final int len2 = 2 + bytes.length; // +2 是因为要留出两个byte来存储 length 本身
+      if (len2 + pool.byteUpto > BYTE_BLOCK_SIZE) {  //如果写入这一行, 则超出这一行大小
+        if (len2 > BYTE_BLOCK_SIZE) { // 超出了整个行大小
           throw new MaxBytesLengthExceededException(
               "bytes can be at most " + (BYTE_BLOCK_SIZE - 2) + " in length; got " + bytes.length);
         }
-        pool.nextBuffer();
+        pool.nextBuffer(); // 没超出一个hang大小的, 则可以新建一个buffer, 来填写 bytes
       }
-      final byte[] buffer = pool.buffer;
-      final int bufferUpto = pool.byteUpto;
-      if (count >= bytesStart.length) {
+      final byte[] buffer = pool.buffer; // 还没写过的,也可能是新扩出来的
+      final int bufferUpto = pool.byteUpto; //
+      if (count >= bytesStart.length) { // bytesStarts 整个下标数组已经跟不上容量了
         bytesStart = bytesStartArray.grow();
         assert count < bytesStart.length + 1 : "count: " + count + " len: " + bytesStart.length;
       }
-      e = count++;
-
-      bytesStart[e] = bufferUpto + pool.byteOffset;
+      e = count++; // count + 1 的值是存储的bytesRef的个数
+      // 则 e 就是下标, 也就是 termID, 也就是 ids[x]的值; 数组元素是 buffer二维数组的起始位置
+      bytesStart[e] = bufferUpto + pool.byteOffset; // byteOffset 是在二维数组的每个一维的起始位置, 而bufferUpto是在此一维内的位置
 
       // We first encode the length, followed by the
       // bytes. Length is encoded as vInt, but will consume
@@ -276,25 +276,25 @@ public final class BytesRefHash implements Accountable {
       // above).
       if (length < 128) {
         // 1 byte to store length
-        buffer[bufferUpto] = (byte) length;
-        pool.byteUpto += length + 1;
+        buffer[bufferUpto] = (byte) length; // 第一个byte存长度, 此刻长度是小于128的, 一个byte可以存的下
+        pool.byteUpto += length + 1; // 在head buffer 的位置, 如果length=127, 则此处等于128,
         assert length >= 0 : "Length must be positive: " + length;
         System.arraycopy(bytes.bytes, bytes.offset, buffer, bufferUpto + 1, length);
-      } else {
+      } else { // 如果很大, 大于等于128个, 则用两个byte, 即short存储长度
         // 2 byte to store length
-        BitUtil.VH_BE_SHORT.set(buffer, bufferUpto, (short) (length | 0x8000));
+        BitUtil.VH_BE_SHORT.set(buffer, bufferUpto, (short) (length | 0x8000)); // VarHandle
         pool.byteUpto += length + 2;
         System.arraycopy(bytes.bytes, bytes.offset, buffer, bufferUpto + 2, length);
       }
       assert ids[hashPos] == -1;
-      ids[hashPos] = e;
+      ids[hashPos] = e; // 好, 所以 e 就是termId
 
       if (count == hashHalfSize) {
         rehash(2 * hashSize, true);
       }
       return e;
-    }
-    return -(e + 1);
+    } // +1 是为了避免0的情况,不知道是第一次,还是不是第一次. 如果本身是0, 返回+0 -0, 而通过+1,再取负数,则可以避开0
+    return -(e + 1); // 这里上下的两个return分别返回一个负数跟正数，为了区分当前处理的这个域值是不是第一次处理，是的话返回一个正数
   }
 
   /**

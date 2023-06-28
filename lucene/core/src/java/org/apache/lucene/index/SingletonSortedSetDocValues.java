@@ -25,8 +25,8 @@ import org.apache.lucene.util.BytesRef;
  * <p>This can be used if you want to have one multi-valued implementation that works for single or
  * multi-valued types.
  */
-final class SingletonSortedSetDocValues extends SortedSetDocValues {
-  private final SortedDocValues in;
+final class SingletonSortedSetDocValues extends SortedSetDocValues {//这样就能以SortedSetDocValues的相关接口,工具类来操作SortedDocValues
+  private final SortedDocValues in;                                 // 实际上 非常像一个委托类 // 和正统的 SortedSet
   private long ord;
 
   /** Creates a multi-valued view over the provided SortedDocValues */
@@ -102,11 +102,11 @@ final class SingletonSortedSetDocValues extends SortedSetDocValues {
 
   @Override
   public long lookupTerm(BytesRef key) throws IOException {
-    return in.lookupTerm(key);
+    return in.lookupTerm(key); // look up
   }
 
   @Override
-  public TermsEnum termsEnum() throws IOException {
+  public TermsEnum termsEnum() throws IOException { // 直接返回in的 termsEnum
     return in.termsEnum();
   }
 

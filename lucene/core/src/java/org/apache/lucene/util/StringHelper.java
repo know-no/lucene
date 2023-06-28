@@ -39,7 +39,7 @@ public abstract class StringHelper {
    * @return The number of common elements (from the start of each).
    */
   public static int bytesDifference(BytesRef priorTerm, BytesRef currentTerm) {
-    int mismatch =
+    int mismatch = //返回作为参数传递给mismatch()函数的两个数组中第一个不相等元素的索引。这对于检查两个数组是否包含相同的对应元素是非常有用的。当不匹配发生时，这将作出反应。如果两个数组的对应元素相同，则该函数返回-1。
         Arrays.mismatch(
             priorTerm.bytes,
             priorTerm.offset,
@@ -61,7 +61,7 @@ public abstract class StringHelper {
    */
   public static int sortKeyLength(final BytesRef priorTerm, final BytesRef currentTerm) {
     return bytesDifference(priorTerm, currentTerm) + 1;
-  }
+  }   // bytesDifference no return -1;
 
   private StringHelper() {}
 

@@ -144,11 +144,11 @@ final class IndexFileDeleter implements Closeable {
     CommitPoint currentCommitPoint = null;
 
     if (currentSegmentsFile != null) {
-      Matcher m = IndexFileNames.CODEC_FILE_PATTERN.matcher("");
+      Matcher m = IndexFileNames.CODEC_FILE_PATTERN.matcher(""); // _[a-z0-9]+(_.*)?\\..* 文件的正则表达
       for (String fileName : files) {
         m.reset(fileName);
         if (!fileName.endsWith("write.lock")
-            && (m.matches()
+            && (m.matches()  // 满足这些要求的是索引文件
                 || fileName.startsWith(IndexFileNames.SEGMENTS)
                 || fileName.startsWith(IndexFileNames.PENDING_SEGMENTS))) {
 
@@ -225,7 +225,7 @@ final class IndexFileDeleter implements Closeable {
     // presumably abandoned files eg due to crash of
     // IndexWriter.
     Set<String> toDelete = new HashSet<>();
-    for (Map.Entry<String, RefCount> entry : refCounts.entrySet()) {
+    for (Map.Entry<String, RefCount> entry : refCounts.entrySet()) { // 使用 RefCount 来对索引文件引用计数
       RefCount rc = entry.getValue();
       final String fileName = entry.getKey();
       if (0 == rc.count) {

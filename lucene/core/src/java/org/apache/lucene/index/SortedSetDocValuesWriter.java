@@ -253,17 +253,17 @@ class SortedSetDocValuesWriter extends DocValuesWriter<SortedSetDocValues> {
   }
 
   private static class BufferedSortedSetDocValues extends SortedSetDocValues {
-    final int[] sortedValues;
-    final int[] ordMap;
+    final int[] sortedValues; //下标是termId, 只是它的 ord
+    final int[] ordMap; // 下标是ord, 只是termID
     final BytesRefHash hash;
-    final BytesRef scratch = new BytesRef();
-    final PackedLongValues.Iterator ordsIter;
-    final PackedLongValues.Iterator ordCountsIter;
-    final DocIdSetIterator docsWithField;
+    final BytesRef scratch = new BytesRef(); // 用来做临时的存储
+    final PackedLongValues.Iterator ordsIter; //应该是每个doc的docvalue的编号数组的数组被打平, [[doc1_dv1,doc1_dv2], [....], []]
+    final PackedLongValues.Iterator ordCountsIter; // 应该是每个doc的docValue有几个
+    final DocIdSetIterator docsWithField; // 有哪些docId是有此field的 docvalue
     final int[] currentDoc;
 
-    private int ordCount;
-    private int ordUpto;
+    private int ordCount; // [ . . . . ]
+    private int ordUpto; // [ . 游标 . . ]
 
     BufferedSortedSetDocValues(
         int[] sortedValues,

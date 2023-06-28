@@ -273,7 +273,7 @@ public class IndexWriter
   private final SegmentInfos segmentInfos;
   final FieldNumbers globalFieldNumberMap;
 
-  final DocumentsWriter docWriter;
+  final DocumentsWriter docWriter; // updateDocuments 方法会添加文档 org.apache.lucene.index.DocumentsWriter.updateDocuments
   private final EventQueue eventQueue = new EventQueue(this);
   private final MergeScheduler.MergeSource mergeSource = new IndexWriterMergeSource(this);
 
@@ -926,7 +926,7 @@ public class IndexWriter
    * "live" changes to this writer instance, use {@link #getConfig()}.
    *
    * <p><b>NOTE:</b> after ths writer is created, the given configuration instance cannot be passed
-   * to another writer.
+   * to another writer. // 因为有些配置是被传递到底层,并且可以实时修改, 并且启动效果
    *
    * @param d the index directory. The index is either created or appended according <code>
    *     conf.getOpenMode()</code>.
@@ -937,14 +937,14 @@ public class IndexWriter
    */
   public IndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
     enableTestPoints = isEnableTestPoints();
-    conf.setIndexWriter(this); // prevent reuse by other instances
+    conf.setIndexWriter(this); // prevent reuse by other instances // 每份配置都生产一个IndexWriter, for 'live' change
     config = conf;
     infoStream = config.getInfoStream();
     softDeletesEnabled = config.getSoftDeletesField() != null;
     eventListener = config.getIndexWriterEventListener();
     // obtain the write.lock. If the user configured a timeout,
     // we wrap with a sleeper and this might take some time.
-    writeLock = d.obtainLock(WRITE_LOCK_NAME);
+    writeLock = d.obtainLock(WRITE_LOCK_NAME); // 获取底层的文件锁
 
     boolean success = false;
     try {
@@ -955,11 +955,11 @@ public class IndexWriter
       OpenMode mode = config.getOpenMode();
       final boolean indexExists;
       final boolean create;
-      if (mode == OpenMode.CREATE) {
-        indexExists = DirectoryReader.indexExists(directory);
+      if (mode == OpenMode.CREATE) { // 三种模式: indexExists 标识是否存在索引, create标识是否应该创建
+        indexExists = DirectoryReader.indexExists(directory); // 会直接覆盖索引文件, 但是生成的commit文件(segmentInfo)序号是已有的加1
         create = true;
       } else if (mode == OpenMode.APPEND) {
-        indexExists = true;
+        indexExists = true; // 直接置为true, 因为空索引, 也算存在
         create = false;
       } else {
         // CREATE_OR_APPEND - create only if an index does not exist
@@ -972,20 +972,20 @@ public class IndexWriter
 
       String[] files = directory.listAll();
 
-      // Set up our initial SegmentInfos:
-      IndexCommit commit = config.getIndexCommit();
+      // Set up our initial SegmentInfos: // 提交包含的所有的段的信息,默认值是null,
+      IndexCommit commit = config.getIndexCommit(); // 可以从config设置此值
 
       // Set up our initial SegmentInfos:
       StandardDirectoryReader reader;
       if (commit == null) {
         reader = null;
       } else {
-        reader = commit.getReader();
+        reader = commit.getReader(); // 如果有的话, 获取reader以做准备
       }
 
-      if (create) {
-
-        if (config.getIndexCommit() != null) {
+      if (create) { // 需要创建: 1. create模式, 2. append模式,且索引不存在
+      // 总而言之, 如果是 create, 则必然不能用set来设置commit信息, 因为没有意义,且干扰含义
+        if (config.getIndexCommit() != null) { // 已经有commit 信息, 是用config的set设置的
           // We cannot both open from a commit point and create:
           if (mode == OpenMode.CREATE) {
             throw new IllegalArgumentException(
@@ -1001,18 +1001,18 @@ public class IndexWriter
         // searching.  In this case we write the next
         // segments_N file with no segments:
         final SegmentInfos sis = new SegmentInfos(config.getIndexCreatedVersionMajor());
-        if (indexExists) {
-          final SegmentInfos previous = SegmentInfos.readLatestCommit(directory);
-          sis.updateGenerationVersionAndCounter(previous);
-        }
-        segmentInfos = sis;
-        rollbackSegments = segmentInfos.createBackupSegmentInfos();
+        if (indexExists) { // 需要创建, 且index已经存在
+          final SegmentInfos previous = SegmentInfos.readLatestCommit(directory); // commit信息, 可以向前兼容一个大版本
+          sis.updateGenerationVersionAndCounter(previous); // sis 是用的空创建的, 这里会依据previous, 来加大自己的generation号
+        }   // 是为了覆盖, 但是增加新的
+        segmentInfos = sis; //
+        rollbackSegments = segmentInfos.createBackupSegmentInfos(); // 创建一些backup, 这样在创建 indexwriter失败的时候,回滚
 
         // Record that we have a change (zero out all
         // segments) pending:
         changed();
 
-      } else if (reader != null) {
+      } else if (reader != null) { // 如果不是create模式, 即: append 模式下; 且reader不为空, 即有commit信息的; 所以commit信息也是从reader中取
         if (reader.segmentInfos.getIndexCreatedVersionMajor() < Version.MIN_SUPPORTED_MAJOR) {
           // second line of defence in the case somebody tries to trick us.
           throw new IllegalArgumentException(
@@ -1041,10 +1041,10 @@ public class IndexWriter
 
         // Must clone because we don't want the incoming NRT reader to "see" any changes this writer
         // now makes:
-        segmentInfos = reader.segmentInfos.clone();
+        segmentInfos = reader.segmentInfos.clone(); // 克隆, 让index的操作不会影响到搜索, 提交前
 
         SegmentInfos lastCommit;
-        try {
+        try { // 有commit信息, 从原来的目录里读取commit 信息
           lastCommit = SegmentInfos.readCommit(directoryOrig, segmentInfos.getSegmentsFileName());
         } catch (IOException ioe) {
           throw new IllegalArgumentException(
@@ -1061,12 +1061,12 @@ public class IndexWriter
 
           // In case the old writer wrote further segments (which we are now dropping),
           // update SIS metadata so we remain write-once:
-          segmentInfos.updateGenerationVersionAndCounter(reader.writer.segmentInfos);
+          segmentInfos.updateGenerationVersionAndCounter(reader.writer.segmentInfos); // 之前的writer还在写,所以要更新我们的
           lastCommit.updateGenerationVersionAndCounter(reader.writer.segmentInfos);
         }
 
-        rollbackSegments = lastCommit.createBackupSegmentInfos();
-      } else {
+        rollbackSegments = lastCommit.createBackupSegmentInfos(); // 创建rollback
+      } else { // append 模式下, reader == null, 则从索引目录中的最新文件初始化出一个 segmentsinfo
         // Init from either the latest commit point, or an explicit prior commit point:
 
         String lastSegmentsFile = SegmentInfos.getLastCommitSegmentsFileName(files);
@@ -1079,7 +1079,7 @@ public class IndexWriter
         // retrying it does is not necessary here (we hold the write lock):
         segmentInfos = SegmentInfos.readCommit(directoryOrig, lastSegmentsFile);
 
-        if (commit != null) {
+        if (commit != null) { //
           // Swap out all segments, but, keep metadata in
           // SegmentInfos, like version & generation, to
           // preserve write-once.  This is important if
@@ -1092,7 +1092,7 @@ public class IndexWriter
                     + ", got="
                     + commit.getDirectory());
           }
-
+          // 用旧的替换新的, 只因为 commit != null, 从设置的commit开始
           SegmentInfos oldInfos =
               SegmentInfos.readCommit(directoryOrig, commit.getSegmentsFileName());
           segmentInfos.replace(oldInfos);
@@ -1116,7 +1116,7 @@ public class IndexWriter
       // un-committed segments:
       globalFieldNumberMap = getFieldNumberMap();
 
-      validateIndexSort();
+      validateIndexSort(); // 检查  IndexSort合法性
 
       config.getFlushPolicy().init(config);
       bufferedUpdatesStream = new BufferedUpdatesStream(infoStream);
@@ -1202,9 +1202,9 @@ public class IndexWriter
   private void validateIndexSort() {
     Sort indexSort = config.getIndexSort();
     if (indexSort != null) {
-      for (SegmentCommitInfo info : segmentInfos) {
+      for (SegmentCommitInfo info : segmentInfos) { // 在每个段的描述信息中对比
         Sort segmentIndexSort = info.info.getIndexSort();
-        if (segmentIndexSort == null || isCongruentSort(indexSort, segmentIndexSort) == false) {
+        if (segmentIndexSort == null || isCongruentSort(indexSort, segmentIndexSort) == false) { // 只需要配置的是实际的前缀即可
           throw new IllegalArgumentException(
               "cannot change previous indexSort="
                   + segmentIndexSort
@@ -1498,7 +1498,7 @@ public class IndexWriter
    * @throws IOException if there is a low-level IO error
    * @lucene.experimental
    */
-  public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs)
+  public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) // 对外暴露的调点
       throws IOException {
     return updateDocuments((DocumentsWriterDeleteQueue.Node<?>) null, docs);
   }

@@ -84,7 +84,7 @@ public abstract class IndexOutput extends DataOutput implements Closeable {
    * @return the new file pointer after alignment
    * @see #alignOffset(long, int)
    */
-  public final long alignFilePointer(int alignmentBytes) throws IOException {
+  public final long alignFilePointer(int alignmentBytes) throws IOException { // 对齐
     final long offset = getFilePointer(), alignedOffset = alignOffset(offset, alignmentBytes);
     final int count = (int) (alignedOffset - offset);
     for (int i = 0; i < count; i++) {
@@ -101,9 +101,10 @@ public abstract class IndexOutput extends DataOutput implements Closeable {
     if (offset < 0L) {
       throw new IllegalArgumentException("Offset must be positive");
     }
-    if (1 != Integer.bitCount(alignmentBytes) || alignmentBytes < 0) {
+    if (1 != Integer.bitCount(alignmentBytes) || alignmentBytes < 0) { // Integer.MIN_VALUE -> bitCount = 1 and < 0
       throw new IllegalArgumentException("Alignment must be a power of 2");
     }
     return Math.addExact(offset - 1L, alignmentBytes) & (-alignmentBytes);
   }
 }
+// 通过四舍五入将给定的偏移量对齐到alignmentBytes字节的倍数。该对齐方式必须是2的幂。

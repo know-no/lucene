@@ -28,22 +28,22 @@ class BulkOperationPacked extends BulkOperation {
   private final int intMask;
 
   public BulkOperationPacked(int bitsPerValue) {
-    this.bitsPerValue = bitsPerValue;
+    this.bitsPerValue = bitsPerValue; // 每个值value需要的做多的 bit 个数
     assert bitsPerValue > 0 && bitsPerValue <= 64;
-    int blocks = bitsPerValue;
-    while ((blocks & 1) == 0) {
-      blocks >>>= 1;
-    }
-    this.longBlockCount = blocks;
-    this.longValueCount = 64 * longBlockCount / bitsPerValue;
-    int byteBlockCount = 8 * longBlockCount;
+    int blocks = bitsPerValue; // block, 一个long就是一个block,这里先取64 * bitsPerValue个bits, 64 * bitsPerValue/bitsPerValue是
+    while ((blocks & 1) == 0) {   // 整数,除得尽, 则 值value 在连续存储的时候,不会跨两个long存储.
+      blocks >>>= 1;    // bitsPerValue 是10，则至少需要5个 long 对象才不需要跨 long 保存 (5*32=320 才刚好被10整除，能保存32个 value 对象)
+    }   // 不断除以2, 是为了找最小的那个阈值
+    this.longBlockCount = blocks; // 标识一个 longBlock 里有几个long(long就是block)
+    this.longValueCount = 64 * longBlockCount / bitsPerValue; // // 标识一个 longBlock 里最多可以存储几个 value
+    int byteBlockCount = 8 * longBlockCount; // 一个long 有8个字节, 则, 一个longBlock 有 8*longBlockCount个字节
     int byteValueCount = longValueCount;
-    while ((byteBlockCount & 1) == 0 && (byteValueCount & 1) == 0) {
-      byteBlockCount >>>= 1;
+    while ((byteBlockCount & 1) == 0 && (byteValueCount & 1) == 0) {  // 计算的方式很牛逼, 我看不懂
+      byteBlockCount >>>= 1;           // 这两个值 是计算 iteration 用的
       byteValueCount >>>= 1;
     }
-    this.byteBlockCount = byteBlockCount;
-    this.byteValueCount = byteValueCount;
+    this.byteBlockCount = byteBlockCount; // 一个iteration需要几个byte存储编码后的结果// 当block是byte的时候，一个iteration最少会使用几个block
+    this.byteValueCount = byteValueCount; // 一个iteration需要几个byte存储待编码的value个数，value是都按long类型处理//一个iteration中，使用byteBlockCount个block可以编码的value数量
     if (bitsPerValue == 64) {
       this.mask = ~0L;
     } else {

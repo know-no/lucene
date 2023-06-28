@@ -28,8 +28,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
  * dictionary of unique values. A pointer to the dictionary value (ordinal) can be retrieved for
  * each document. Ordinals are dense and in increasing sorted order.
  */
-public abstract class SortedDocValues extends DocValuesIterator {
-
+public abstract class SortedDocValues extends DocValuesIterator { // 每个文档只有一个值, 但是不同文档之间的可能是重复的 
   /** Sole constructor. (For invocation by subclass constructors, typically implicit.) */
   protected SortedDocValues() {}
 

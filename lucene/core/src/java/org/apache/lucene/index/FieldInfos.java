@@ -385,20 +385,20 @@ public class FieldInfos implements Iterable<FieldInfo> {
      * tries to add it with the given preferred field number assigned if possible otherwise the
      * first unassigned field number is used as the field number.
      */
-    synchronized int addOrGet(FieldInfo fi) {
+    synchronized int addOrGet(FieldInfo fi) { // 并发安全
       String fieldName = fi.getName();
-      verifySoftDeletedFieldName(fieldName, fi.isSoftDeletesField());
+      verifySoftDeletedFieldName(fieldName, fi.isSoftDeletesField()); // 判断softdeletes配置是否和iwc的配置不同
       Integer fieldNumber = nameToNumber.get(fieldName);
 
       if (fieldNumber != null) {
-        verifySameSchema(fi);
+        verifySameSchema(fi); // 不为空，校验一致性
       } else { // first time we see this field in this index
-        final Integer preferredBoxed = Integer.valueOf(fi.number);
+        final Integer preferredBoxed = Integer.valueOf(fi.number); // 如果是新增的,应该是-1.
         if (fi.number != -1 && !numberToName.containsKey(preferredBoxed)) {
           // cool - we can use this number globally
           fieldNumber = preferredBoxed;
         } else {
-          // find a new FieldNumber
+          // find a new FieldNumber // -1  或者 不存在与 numberToName
           while (numberToName.containsKey(++lowestUnassignedFieldNumber)) {
             // might not be up to date - lets do the work once needed
           }
@@ -687,11 +687,11 @@ public class FieldInfos implements Iterable<FieldInfo> {
      *     new fields.
      */
     FieldInfo add(FieldInfo fi, long dvGen) {
-      final FieldInfo curFi = fieldInfo(fi.getName());
-      if (curFi != null) {
-        curFi.verifySameSchema(fi, globalFieldNumbers.strictlyConsistent);
+      final FieldInfo curFi = fieldInfo(fi.getName()); // 通过name寻找获取全局的field info
+      if (curFi != null) { // 不为空，说明全局有这个field
+        curFi.verifySameSchema(fi, globalFieldNumbers.strictlyConsistent); // 校验schema
         if (fi.attributes() != null) {
-          fi.attributes().forEach((k, v) -> curFi.putAttribute(k, v));
+          fi.attributes().forEach((k, v) -> curFi.putAttribute(k, v));// 把自定义属性也全部加入
         }
         if (fi.hasPayloads()) {
           curFi.setStorePayloads();
@@ -722,7 +722,7 @@ public class FieldInfos implements Iterable<FieldInfo> {
               fi.getVectorDimension(),
               fi.getVectorSimilarityFunction(),
               fi.isSoftDeletesField());
-      byName.put(fiNew.getName(), fiNew);
+      byName.put(fiNew.getName(), fiNew); // byName 添加
       return fiNew;
     }
 

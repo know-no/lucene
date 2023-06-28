@@ -124,7 +124,7 @@ abstract class BulkOperation implements PackedInts.Decoder, PackedInts.Encoder {
         null,
         new BulkOperationPackedSingleBlock(32),
       };
-
+  // 选择合适子类
   public static BulkOperation of(PackedInts.Format format, int bitsPerValue) {
     switch (format) {
       case PACKED:
@@ -164,8 +164,8 @@ abstract class BulkOperation implements PackedInts.Decoder, PackedInts.Encoder {
    * <p>This method computes <code>iterations</code> as <code>ramBudget / (b + 8v)</code> (since a
    * long is 8 bytes).
    */
-  public final int computeIterations(int valueCount, int ramBudget) {
-    final int iterations = ramBudget / (byteBlockCount() + 8 * byteValueCount());
+  public final int computeIterations(int valueCount, int ramBudget) { // 因为要编码的数据量大, 所以分迭代周期再计算, 每个load进内存部分数据
+    final int iterations = ramBudget / (byteBlockCount() + 8 * byteValueCount()); //
     if (iterations == 0) {
       // at least 1
       return 1;

@@ -71,7 +71,7 @@ public class PackedInts {
    */
   public enum Format {
     /** Compact format, all bits are written contiguously. */
-    PACKED(0) {
+    PACKED(0) { // 所有的值都是连续存储在一起的，允许一个value编码结果跨越多个block(block可能是个long,可能是个int)
 
       @Override
       public long byteCount(int packedIntsVersion, int valueCount, int bitsPerValue) {
@@ -199,21 +199,21 @@ public class PackedInts {
    * should probably use {@link PackedInts#COMPACT}.
    *
    * <p>If you don't know how many values you are going to write, use <code>valueCount = -1</code>.
-   */
-  public static FormatAndBits fastestFormatAndBits(
+   */// 自动找出最适合的format,根据: valuesCount 要编码值的byte的数量 , bitsPerValue,每个值所需的最大bit数目
+  public static FormatAndBits fastestFormatAndBits( // acceptableOverheadRatio：允许编码结果浪费的内存比率
       int valueCount, int bitsPerValue, float acceptableOverheadRatio) {
-    if (valueCount == -1) {
+    if (valueCount == -1) { // -1 是编码的总byte量,提前不可预知
       valueCount = Integer.MAX_VALUE;
     }
-
+    //
     acceptableOverheadRatio = Math.max(COMPACT, acceptableOverheadRatio);
     acceptableOverheadRatio = Math.min(FASTEST, acceptableOverheadRatio);
     float acceptableOverheadPerValue = acceptableOverheadRatio * bitsPerValue; // in bits
 
     int maxBitsPerValue = bitsPerValue + (int) acceptableOverheadPerValue;
-
+    // 加上浪费的bit后的, 每个值的最大bit个数
     int actualBitsPerValue = -1;
-
+    // block一般是int或者是long，所以8,16,32,64的编码速度是比较快的
     // rounded number of bits per value are usually the fastest
     if (bitsPerValue <= 8 && maxBitsPerValue >= 8) {
       actualBitsPerValue = 8;
@@ -226,7 +226,7 @@ public class PackedInts {
     } else {
       actualBitsPerValue = bitsPerValue;
     }
-
+    // // 强制使用Format.PACKED，已经不使用PACKED_SINGLE_BLOCK了(废弃)
     return new FormatAndBits(Format.PACKED, actualBitsPerValue);
   }
 

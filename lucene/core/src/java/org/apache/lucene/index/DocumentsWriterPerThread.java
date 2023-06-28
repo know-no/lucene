@@ -237,8 +237,8 @@ final class DocumentsWriterPerThread implements Accountable {
           // it's very hard to fix (we can't easily distinguish aborting
           // vs non-aborting exceptions):
           reserveOneDoc();
-          try {
-            indexingChain.processDocument(numDocsInRAM++, doc);
+          try {   //私有 numDocsInRAM最初在 dwpt初始化的时候为0,随着处理的文章数据增加而增加, 并非全局的。
+            indexingChain.processDocument(numDocsInRAM++, doc); // dwpt持有私密的indexChain
           } finally {
             onNewDocOnRAM.run();
           }
@@ -388,7 +388,7 @@ final class DocumentsWriterPerThread implements Accountable {
       } else {
         softDeletedDocs = null;
       }
-      sortMap = indexingChain.flush(flushState);
+      sortMap = indexingChain.flush(flushState); // dwpt执行flush的时候,调用indexingChain.flush
       if (softDeletedDocs == null) {
         flushState.softDelCountOnFlush = 0;
       } else {

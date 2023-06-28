@@ -235,7 +235,7 @@ class SimpleTextDocValuesWriter extends DocValuesConsumer {
 
     int valueCount = 0;
     int maxLength = -1;
-    TermsEnum terms = valuesProducer.getSorted(field).termsEnum();
+    TermsEnum terms = valuesProducer.getSorted(field).termsEnum(); // TermsEnum 用来定位Term的工具类
     for (BytesRef value = terms.next(); value != null; value = terms.next()) {
       maxLength = Math.max(maxLength, value.length);
       valueCount++;

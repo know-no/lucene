@@ -47,7 +47,7 @@ public class ByteArrayDataOutput extends DataOutput {
     reset(bytes, 0, bytes.length);
   }
 
-  public void reset(byte[] bytes, int offset, int len) {
+  public void reset(byte[] bytes, int offset, int len) { // bute[]数组的reset, 不用清0, 直接改游标就好
     this.bytes = bytes;
     pos = offset;
     limit = offset + len;

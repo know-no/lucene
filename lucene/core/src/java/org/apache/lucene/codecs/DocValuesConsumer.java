@@ -65,7 +65,7 @@ import org.apache.lucene.util.packed.PackedInts;
  * </ol>
  *
  * @lucene.experimental
- */
+ */ // 抽象类, 可以消费内存里的 DocValue 数据, 写入到磁盘上
 public abstract class DocValuesConsumer implements Closeable {
 
   /** Sole constructor. (For invocation by subclass constructors, typically implicit.) */
@@ -89,7 +89,7 @@ public abstract class DocValuesConsumer implements Closeable {
    * @throws IOException if an I/O error occurred.
    */
   public abstract void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer)
-      throws IOException;
+      throws IOException; // 将长长的朴实无华的 二进制数据 写入. 没有做额外的前缀压缩、去重等操作
 
   /**
    * Writes pre-sorted binary docvalues for a field.
@@ -118,7 +118,7 @@ public abstract class DocValuesConsumer implements Closeable {
    * @param valuesProducer produces the values to write
    * @throws IOException if an I/O error occurred.
    */
-  public abstract void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer)
+  public abstract void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) //
       throws IOException;
 
   /**

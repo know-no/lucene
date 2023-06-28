@@ -34,12 +34,12 @@ import org.apache.lucene.util.packed.PackedLongValues;
 /**
  * Buffers up pending byte[] per doc, deref and sorting via int ord, then flushes when segment
  * flushes.
- */
+ */     // todo 疑问: 怎么保存了 docId -> docValue的关系的呢. (以为TermsDict是按照字典序的排序的)
 class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
   final BytesRefHash hash;
   private final PackedLongValues.Builder pending;
-  private final DocsWithFieldSet docsWithField;
-  private final Counter iwBytesUsed;
+  private final DocsWithFieldSet docsWithField;//是用的fixbitset数据结构. 一方面, docId的写入是按照顺序写入的. 另外一个,内部是bitMap,所以可以很方便的
+  private final Counter iwBytesUsed;          // 按照从小到大,或者从大到小的顺序返回拥有的docId
   private long bytesUsed; // this currently only tracks differences in 'pending'
   private final FieldInfo fieldInfo;
   private int lastDocID = -1;
@@ -81,15 +81,15 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
               + (BYTE_BLOCK_SIZE - 2));
     }
 
-    addOneValue(value);
+    addOneValue(value); // 写入writer
     docsWithField.add(docID);
 
     lastDocID = docID;
   }
 
   private void addOneValue(BytesRef value) {
-    int termID = hash.add(value);
-    if (termID < 0) {
+    int termID = hash.add(value); // 获得termID // hash并不是全局index的, 返回的termID,只是这个段内的
+    if (termID < 0) { // <0 说明不是第一次见
       termID = -termID - 1;
     } else {
       // reserve additional space for each unique value:
@@ -99,7 +99,7 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
       iwBytesUsed.addAndGet(2 * Integer.BYTES);
     }
 
-    pending.add(termID);
+    pending.add(termID); // 临时放进 内存压缩的存储; 收集 docvalue 的termid
     updateBytesUsed();
   }
 
@@ -111,19 +111,19 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
 
   @Override
   SortedDocValues getDocValues() {
-    int valueCount = hash.size();
+    int valueCount = hash.size(); // 有多少个 term
     if (finalSortedValues == null) {
       updateBytesUsed();
       assert finalOrdMap == null && finalOrds == null;
-      finalSortedValues = hash.sort();
-      finalOrds = pending.build();
-      finalOrdMap = new int[valueCount];
+      finalSortedValues = hash.sort(); // 根据背后的binary来排序, 返回的termID数组, 是按照对应的biunary排序的,段内排序,不是index全局
+      finalOrds = pending.build();//pending一直在收集termID,这里可以理解为转为读模型//可以理解为docId2TermId数组,下标是段内docId,只是TermId
+      finalOrdMap = new int[valueCount];//更准确的说是 docId2TermIdLinkedMap,因为数组的下标是连续的,012345,但可能2没有field docvalue,所以LinedMap更合理,且map的key掌握在docsWithField手里
     }
     for (int ord = 0; ord < valueCount; ord++) {
-      finalOrdMap[finalSortedValues[ord]] = ord;
-    }
-    return new BufferedSortedDocValues(
-        hash, finalOrds, finalSortedValues, finalOrdMap, docsWithField.iterator());
+      finalOrdMap[finalSortedValues[ord]] = ord; // finalSortedValues[ord], if ord==0 第一个ord的term的termID,
+    }                                            // 得到 finalOrdMap:  termID -> ord
+    return new BufferedSortedDocValues( // finalOrds 只是为了得到doc的docvalue的ord
+        hash, finalOrds, finalSortedValues, finalOrdMap, docsWithField.iterator()); //
   }
 
   private int[] sortDocValues(int maxDoc, Sorter.DocMap sortMap, SortedDocValues oldValues)
@@ -185,15 +185,15 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
   static class BufferedSortedDocValues extends SortedDocValues {
     final BytesRefHash hash;
     final BytesRef scratch = new BytesRef();
-    final int[] sortedValues;
-    final int[] ordMap;
-    private int ord;
+    final int[] sortedValues; // 下标是ord, 只是某个termID, 即 ord -> termID 的映射 ; 排序不是按照termID大小拍的, 而是term的字典序
+    final int[] ordMap;//termID -> ord的映射;给定一个termID,得到ord顺序,就可以在TermDict中找到具体的term. 如idx=0,value=5即term0在dict中排名第五
+    private int ord;        // TermDict中的term是按照 term 排序的, 给定一个id,就可以找到ta. TermDict存储该字段下所有的term，因为这里的term都是顺序的，所以采取前缀压缩。
     final PackedLongValues.Iterator iter;
     final DocIdSetIterator docsWithField;
 
     public BufferedSortedDocValues(
         BytesRefHash hash,
-        PackedLongValues docToOrd,
+        PackedLongValues docToOrd, // pending.add(termID),所以每次get都是按照doc顺序get的termID
         int[] sortedValues,
         int[] ordMap,
         DocIdSetIterator docsWithField) {
@@ -211,10 +211,10 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
 
     @Override
     public int nextDoc() throws IOException {
-      int docID = docsWithField.nextDoc();
+      int docID = docsWithField.nextDoc(); // 本质就是doc插入的顺序
       if (docID != NO_MORE_DOCS) {
-        ord = Math.toIntExact(iter.next());
-        ord = ordMap[ord];
+        ord = Math.toIntExact(iter.next()); // 获得term id, 然后复制给ord, 其实应该用一个临时变量 termId的
+        ord = ordMap[ord]; // termId -> ord // 以及termid,获取到ord
       }
       return docID;
     }
@@ -243,7 +243,7 @@ class SortedDocValuesWriter extends DocValuesWriter<SortedDocValues> {
     public BytesRef lookupOrd(int ord) {
       assert ord >= 0 && ord < sortedValues.length;
       assert sortedValues[ord] >= 0 && sortedValues[ord] < sortedValues.length;
-      hash.get(sortedValues[ord], scratch);
+      hash.get(sortedValues[ord], scratch);// sortedValues: ordId -> termId
       return scratch;
     }
 

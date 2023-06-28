@@ -20,7 +20,7 @@ import java.io.*;
 
 /** A {@link DataInput} wrapping a plain {@link InputStream}. */
 public class InputStreamDataInput extends DataInput implements Closeable {
-  private final InputStream is;
+  private final InputStream is; // 包装的是inputstream
 
   public InputStreamDataInput(InputStream is) {
     this.is = is;

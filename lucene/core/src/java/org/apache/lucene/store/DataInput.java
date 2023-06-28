@@ -81,7 +81,7 @@ public abstract class DataInput implements Cloneable {
   public short readShort() throws IOException {
     final byte b1 = readByte();
     final byte b2 = readByte();
-    return (short) (((b2 & 0xFF) << 8) | (b1 & 0xFF));
+    return (short) (((b2 & 0xFF) << 8) | (b1 & 0xFF)); // b1还是低位, 说明存在底层是小端存储
   }
 
   /**
@@ -94,7 +94,7 @@ public abstract class DataInput implements Cloneable {
     final byte b1 = readByte();
     final byte b2 = readByte();
     final byte b3 = readByte();
-    final byte b4 = readByte();
+    final byte b4 = readByte(); // 其实没必要和0xFF做&运算吧
     return ((b4 & 0xFF) << 24) | ((b3 & 0xFF) << 16) | ((b2 & 0xFF) << 8) | (b1 & 0xFF);
   }
 
@@ -117,25 +117,25 @@ public abstract class DataInput implements Cloneable {
       i |= (b & 0x7F) << shift;
     }
     return i;
-    */
+    */  // lucene 以1作为连续位, 即需要继续读取, 如果是0 , 则表示最后一个了.
     byte b = readByte();
     if (b >= 0) return b;
-    int i = b & 0x7F;
+    int i = b & 0x7F; // i 是后七位
     b = readByte();
-    i |= (b & 0x7F) << 7;
-    if (b >= 0) return i;
+    i |= (b & 0x7F) << 7; // 新都出来的放到bytes的左侧, 向左移动7位, i放在后面
+    if (b >= 0) return i; // 如果是最后一个字节了, 直接返回
     b = readByte();
     i |= (b & 0x7F) << 14;
     if (b >= 0) return i;
     b = readByte();
     i |= (b & 0x7F) << 21;
-    if (b >= 0) return i;
+    if (b >= 0) return i; // 一共 28 bit
     b = readByte();
     // Warning: the next ands use 0x0F / 0xF0 - beware copy/paste errors:
-    i |= (b & 0x0F) << 28;
-    if ((b & 0xF0) == 0) return i;
+    i |= (b & 0x0F) << 28; // 0x0F => 0000 1111  再取四位
+    if ((b & 0xF0) == 0) return i; // 如果这个字节的高四位不是0000, 说明发生了问题
     throw new IOException("Invalid vInt detected (too many bits)");
-  }
+  } // 从这个读取过程还可以看出, 因为java使用的是小端, 即数据高位在地址高位, 所以越往后read的byte越是低位数据,向左放.
 
   /**
    * Read a {@link BitUtil#zigZagDecode(int) zig-zag}-encoded {@link #readVInt() variable-length}
@@ -143,7 +143,7 @@ public abstract class DataInput implements Cloneable {
    *
    * @see DataOutput#writeZInt(int)
    */
-  public int readZInt() throws IOException {
+  public int readZInt() throws IOException { // 读取一个之前被zigZag编码/压缩的int
     return BitUtil.zigZagDecode(readVInt());
   }
 
@@ -153,8 +153,8 @@ public abstract class DataInput implements Cloneable {
    * @see DataOutput#writeLong(long)
    * @see BitUtil#VH_LE_LONG
    */
-  public long readLong() throws IOException {
-    return (readInt() & 0xFFFFFFFFL) | (((long) readInt()) << 32);
+  public long readLong() throws IOException { // java里数据低位和地址低位是从左边, 其实做都无所谓, 只是 << 符号向高位推进
+    return (readInt() & 0xFFFFFFFFL) | (((long) readInt()) << 32); // 后读的是数据高位, 在地址高位, << 向左推进.
   }
 
   /**
@@ -193,7 +193,7 @@ public abstract class DataInput implements Cloneable {
   public void readFloats(float[] floats, int offset, int len) throws IOException {
     Objects.checkFromIndexSize(offset, len, floats.length);
     for (int i = 0; i < len; i++) {
-      floats[offset + i] = Float.intBitsToFloat(readInt());
+      floats[offset + i] = Float.intBitsToFloat(readInt()); // 单精度浮点数也是用int存储的
     }
   }
 
@@ -221,11 +221,11 @@ public abstract class DataInput implements Cloneable {
     }
     return i;
     */
-    byte b = readByte();
-    if (b >= 0) return b;
-    long i = b & 0x7FL;
+    byte b = readByte(); // 还是和之前 VInt 一样的压缩方式
+    if (b >= 0) return b; // 1 是延续位, 如果b>=0, 说明最高位是0, 不是1, 不延续, 直接返回.
+    long i = b & 0x7FL; // 取低数据位7位
     b = readByte();
-    i |= (b & 0x7FL) << 7;
+    i |= (b & 0x7FL) << 7; // 将新读到的数据任然取低数据位7位, 然后像高数据位推进7, 与之前的低位数据合并.
     if (b >= 0) return i;
     b = readByte();
     i |= (b & 0x7FL) << 14;
@@ -246,14 +246,14 @@ public abstract class DataInput implements Cloneable {
     i |= (b & 0x7FL) << 49;
     if (b >= 0) return i;
     b = readByte();
-    i |= (b & 0x7FL) << 56;
+    i |= (b & 0x7FL) << 56; // 加上 b&0x7F 的七位, 已经 63位了
     if (b >= 0) return i;
-    if (allowNegative) {
+    if (allowNegative) { // 如果方法调用允许负数, 则继续读一个byte, 8位.
       b = readByte();
-      i |= (b & 0x7FL) << 63;
+      i |= (b & 0x7FL) << 63;   // b 取低7位, 然后合并. 因为是最后一个byte了, 只能是用来标识正负数的 0/1
       if (b == 0 || b == 1) return i;
       throw new IOException("Invalid vLong detected (more than 64 bits)");
-    } else {
+    } else { // b < 0, 最高位为1, 延续位, 说明这可能是个负数数据, 也可能是比 正long 大的.
       throw new IOException("Invalid vLong detected (negative values disallowed)");
     }
   }
@@ -277,7 +277,7 @@ public abstract class DataInput implements Cloneable {
     int length = readVInt();
     final byte[] bytes = new byte[length];
     readBytes(bytes, 0, length);
-    return new String(bytes, 0, length, StandardCharsets.UTF_8);
+    return new String(bytes, 0, length, StandardCharsets.UTF_8); // 说明是先转化为utf-8编码,然后才写到底层的
   }
 
   /**

@@ -48,5 +48,5 @@ public abstract class FSLockFactory extends LockFactory {
    *
    * @throws IOException if the lock could not be obtained.
    */
-  protected abstract Lock obtainFSLock(FSDirectory dir, String lockName) throws IOException;
+  protected abstract Lock obtainFSLock(FSDirectory dir, String lockName) throws IOException;//具体子类负责实现,针对不同的文件系统进行优化实现
 }

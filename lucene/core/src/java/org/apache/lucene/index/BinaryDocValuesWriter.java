@@ -66,7 +66,7 @@ class BinaryDocValuesWriter extends DocValuesWriter<BinaryDocValues> {
   }
 
   public void addValue(int docID, BytesRef value) {
-    if (docID <= lastDocID) {
+    if (docID <= lastDocID) { // 单值docvalue, 如果遇到相等,或者更小的,说明不是单指
       throw new IllegalArgumentException(
           "DocValuesField \""
               + fieldInfo.name
@@ -81,7 +81,7 @@ class BinaryDocValuesWriter extends DocValuesWriter<BinaryDocValues> {
           "DocValuesField \"" + fieldInfo.name + "\" is too large, must be <= " + MAX_LENGTH);
     }
 
-    maxLength = Math.max(value.length, maxLength);
+    maxLength = Math.max(value.length, maxLength); // 当前写入的value 的最大的长度
     lengths.add(value.length);
     try {
       bytesOut.writeBytes(value.bytes, value.offset, value.length);
@@ -112,7 +112,7 @@ class BinaryDocValuesWriter extends DocValuesWriter<BinaryDocValues> {
   }
 
   @Override
-  public void flush(SegmentWriteState state, Sorter.DocMap sortMap, DocValuesConsumer dvConsumer)
+  public void flush(SegmentWriteState state, Sorter.DocMap sortMap, DocValuesConsumer dvConsumer) //刷写文件
       throws IOException {
     bytes.freeze(false);
     if (finalLengths == null) {

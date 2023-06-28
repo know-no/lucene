@@ -28,9 +28,9 @@ import org.apache.lucene.util.ArrayUtil;
  * @see DirectMonotonicReader
  * @lucene.internal
  */
-public final class DirectMonotonicWriter {
+public final class DirectMonotonicWriter { // 计算平均的 avarage的incre, 然后利用inre来缩放数据, 减少 bitsPerValue
 
-  public static final int MIN_BLOCK_SHIFT = 2;
+  public static final int MIN_BLOCK_SHIFT = 2; // block是分组, 不是底层 DirectWriter 用的那个block
   public static final int MAX_BLOCK_SHIFT = 22;
 
   final IndexOutput meta;
@@ -69,7 +69,7 @@ public final class DirectMonotonicWriter {
     this.data = dataOut;
     this.numValues = numValues;
     final int blockSize = 1 << blockShift;
-    this.buffer = new long[(int) Math.min(numValues, blockSize)];
+    this.buffer = new long[(int) Math.min(numValues, blockSize)];// buffer里就是一个分组的数据, 分组大小 blocksize
     this.bufferSize = 0;
     this.baseDataPointer = dataOut.getFilePointer();
   }
@@ -77,7 +77,7 @@ public final class DirectMonotonicWriter {
   private void flush() throws IOException {
     assert bufferSize != 0;
 
-    final float avgInc =
+    final float avgInc = // (max -min)/size
         (float) ((double) (buffer[bufferSize - 1] - buffer[0]) / Math.max(1, bufferSize - 1));
     for (int i = 0; i < bufferSize; ++i) {
       final long expected = (long) (avgInc * (long) i);
@@ -100,8 +100,8 @@ public final class DirectMonotonicWriter {
 
     meta.writeLong(min);
     meta.writeInt(Float.floatToIntBits(avgInc));
-    meta.writeLong(data.getFilePointer() - baseDataPointer);
-    if (maxDelta == 0) {
+    meta.writeLong(data.getFilePointer() - baseDataPointer); // 当前的pointer减去初始的, 是马上要写入data的数据,在data里的起始位置
+    if (maxDelta == 0) { // 说明都是一样的值, 所以直接用刚才写入的min就好了
       meta.writeByte((byte) 0);
     } else {
       final int bitsRequired = DirectWriter.unsignedBitsRequired(maxDelta);
@@ -110,7 +110,7 @@ public final class DirectMonotonicWriter {
         writer.add(buffer[i]);
       }
       writer.finish();
-      meta.writeByte((byte) bitsRequired);
+      meta.writeByte((byte) bitsRequired); // 再补充上bitsRequired
     }
     bufferSize = 0;
   }
@@ -128,7 +128,7 @@ public final class DirectMonotonicWriter {
       throw new IllegalArgumentException("Values do not come in order: " + previous + ", " + v);
     }
     if (bufferSize == buffer.length) {
-      flush();
+      flush(); // 当 buffer 满了以后, 可以理解是一个block满了, flush,是为了把这个block,写入data, 且元信息写入 meta
     }
     buffer[bufferSize++] = v;
     previous = v;

@@ -34,24 +34,24 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntBlockPool;
 import org.apache.lucene.util.RamUsageEstimator;
 
-class TermVectorsConsumer extends TermsHash {
-  protected final Directory directory;
+class TermVectorsConsumer extends TermsHash { // 调度词向量的构建的最上层逻辑，负责创建
+  protected final Directory directory;        // 调度 TermVectorsConsumerPerField 以及 TermVectorWriter
   protected final SegmentInfo info;
   protected final Codec codec;
-  TermVectorsWriter writer;
+  TermVectorsWriter writer; // 词向量持久化
 
   /** Scratch term used by TermVectorsConsumerPerField.finishDocument. */
   final BytesRef flushTerm = new BytesRef();
-
+  // 用来从TermVectorsConsumerPerField的bytePool中读取position信息
   /** Used by TermVectorsConsumerPerField when serializing the term vectors. */
   final ByteSliceReader vectorSliceReaderPos = new ByteSliceReader();
 
   final ByteSliceReader vectorSliceReaderOff = new ByteSliceReader();
 
   private boolean hasVectors;
-  private int numVectorFields;
-  int lastDocID;
-  private TermVectorsConsumerPerField[] perFields = new TermVectorsConsumerPerField[1];
+  private int numVectorFields; // 和 perFields 参数不是同等大小的, doc级别的参数
+  int lastDocID; //doc级别的变量,每一个开启词向量构建的Field，都有一个TermVectorsConsumerPerField，当一个doc处理完之后会把所有的
+  private TermVectorsConsumerPerField[] perFields = new TermVectorsConsumerPerField[1];//perFields都序列化到90CompressingTermVectorsWriter中，然后重置为null
   // this accountable either holds the writer or one that returns null.
   // it's cleaner than checking if the writer is null all over the place
   Accountable accountable = Accountable.NULL_ACCOUNTABLE;
@@ -79,10 +79,10 @@ class TermVectorsConsumer extends TermsHash {
       int numDocs = state.segmentInfo.maxDoc();
       assert numDocs > 0;
       // At least one doc in this run had term vectors enabled
-      try {
+      try { // // 把不存在词向量Filed的文档填充下
         fill(numDocs);
         assert state.segmentInfo != null;
-        writer.finish(numDocs);
+        writer.finish(numDocs);// // 触发词向量索引文件持久化落盘
       } finally {
         IOUtils.close(writer);
       }
@@ -99,7 +99,7 @@ class TermVectorsConsumer extends TermsHash {
       lastDocID++;
     }
   }
-
+  // 初始化一个 具体的writer, 如Lucene90CompressingTermVectorsWriter
   void initTermVectorsWriter() throws IOException {
     if (writer == null) {
       IOContext context = new IOContext(new FlushInfo(lastDocID, bytesUsed.get()));
@@ -114,25 +114,25 @@ class TermVectorsConsumer extends TermsHash {
   }
 
   @Override
-  void finishDocument(int docID) throws IOException {
+  void finishDocument(int docID) throws IOException { //
 
-    if (!hasVectors) {
+    if (!hasVectors) { // 没有词向量, 直接返回
       return;
     }
-
+    // 按字段名排序TermVectorsConsumerPerField. 这里可以看出, perFields.length != numVectorFields, 后者是实际的元素个数
     // Fields in term vectors are UTF16 sorted:
     ArrayUtil.introSort(perFields, 0, numVectorFields);
 
-    initTermVectorsWriter();
+    initTermVectorsWriter(); // 如果为空 ,就初始化 // 在finish之前, 都没有用到writer. writer的的start...finish在consumer finish之后
 
-    fill(docID);
+    fill(docID); // 不留空隙, lastDocIdWithVector ------ docID 之间的要填充满
 
-    // Append term vectors to the real outputs:
-    writer.startDocument(numVectorFields);
-    for (int i = 0; i < numVectorFields; i++) {
-      perFields[i].finishDocument();
-    }
-    writer.finishDocument();
+    // Append term vectors to the real outputs:   //* writer开始处理doc, 把相关的词向量数据写到writer的缓存中
+    writer.startDocument(numVectorFields);        //*
+    for (int i = 0; i < numVectorFields; i++) {   //*
+      perFields[i].finishDocument();              //*
+    }                                             //*
+    writer.finishDocument();                      //*
 
     assert lastDocID == docID : "lastDocID=" + lastDocID + " docID=" + docID;
 
@@ -152,18 +152,18 @@ class TermVectorsConsumer extends TermsHash {
     }
   }
 
-  void resetFields() {
+  void resetFields() { // 因为要开始一个新的doc的收集, 所以reset他们.
     Arrays.fill(perFields, null); // don't hang onto stuff from previous doc
     numVectorFields = 0;
   }
 
-  @Override
-  public TermsHashPerField addField(FieldInvertState invertState, FieldInfo fieldInfo) {
+  @Override           // 负责调度,创建: TermVectorConsumerPerField
+  public TermsHashPerField addField(FieldInvertState invertState, FieldInfo fieldInfo) { // 为每一个新增的field, 生成一个Consumer
     return new TermVectorsConsumerPerField(invertState, this, fieldInfo);
   }
-
+  //当结束一个Field的所有term的处理之后，就把TermVectorsConsumerPerField存在perFields中,等待把数据都序列化到Lucene90CompressingTermVectorsWriter中
   void addFieldToFlush(TermVectorsConsumerPerField fieldToFlush) {
-    if (numVectorFields == perFields.length) {
+    if (numVectorFields == perFields.length) { // 会被 调度,创建出来的TermVectorsConsumerPerField调用, 以标识field 处理完毕
       int newSize = ArrayUtil.oversize(numVectorFields + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
       TermVectorsConsumerPerField[] newArray = new TermVectorsConsumerPerField[newSize];
       System.arraycopy(perFields, 0, newArray, 0, numVectorFields);
@@ -174,7 +174,7 @@ class TermVectorsConsumer extends TermsHash {
   }
 
   @Override
-  void startDocument() {
+  void startDocument() { // 开始处理一个新的doc
     resetFields();
     numVectorFields = 0;
   }

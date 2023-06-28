@@ -34,7 +34,7 @@ import java.io.IOException;
  *
  * <p>If you access the cloned IndexInput after closing the original object, any <code>readXXX
  * </code> methods will throw {@link AlreadyClosedException}.
- *
+ * // 它的并发使用是怎么样的? clone出来的object会被原来的object close方法关闭吗?
  * @see Directory
  */
 public abstract class IndexInput extends DataInput implements Closeable {

@@ -156,7 +156,7 @@ class SortedNumericDocValuesWriter extends DocValuesWriter<SortedNumericDocValue
       return DocValues.singleton(new BufferedNumericDocValues(values, docsWithField.iterator()));
     } else {
       return new BufferedSortedNumericDocValues(values, valueCounts, docsWithField.iterator());
-    }
+    } // sorted numeric doc values的实现类
   }
 
   @Override

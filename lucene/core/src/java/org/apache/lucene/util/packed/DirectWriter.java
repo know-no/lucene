@@ -42,7 +42,7 @@ import org.apache.lucene.util.BitUtil;
  *
  * @see DirectReader
  */
-public final class DirectWriter {
+public final class DirectWriter { // 读写平衡优化的 没有使用BulkOperationPacked系列的编码器。DirectWriter综合考虑空间浪费和编码解码的速度，并没有支持全部的bitsPerValue，它支持的bitsPerValue的列表是：1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64。
   final int bitsPerValue;
   final long numValues;
   final DataOutput output;

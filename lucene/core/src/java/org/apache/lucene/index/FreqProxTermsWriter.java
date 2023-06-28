@@ -79,12 +79,12 @@ final class FreqProxTermsWriter extends TermsHash {
 
   @Override
   public void flush(
-      Map<String, TermsHashPerField> fieldsToFlush,
+      Map<String, TermsHashPerField> fieldsToFlush, // 并不是所有的field都是有数据的，所以把有数据的加入到map里
       final SegmentWriteState state,
       Sorter.DocMap sortMap,
       NormsProducer norms)
       throws IOException {
-    super.flush(fieldsToFlush, state, sortMap, norms);
+    super.flush(fieldsToFlush, state, sortMap, norms); // 首先调用父类的方法， 父类会先调用next，所以实际上，会先刷写term vector，如果有的话
 
     // Gather all fields that saw any postings:
     List<FreqProxTermsWriterPerField> allFields = new ArrayList<>();
@@ -92,22 +92,22 @@ final class FreqProxTermsWriter extends TermsHash {
     for (TermsHashPerField f : fieldsToFlush.values()) {
       final FreqProxTermsWriterPerField perField = (FreqProxTermsWriterPerField) f;
       if (perField.getNumTerms() > 0) {
-        perField.sortTerms();
+        perField.sortTerms(); // 对每个Field的terms排序，因为term会用FST存储， 所以需要提前有序
         assert perField.indexOptions != IndexOptions.NONE;
         allFields.add(perField);
       }
     }
 
-    if (!state.fieldInfos.hasPostings()) {
+    if (!state.fieldInfos.hasPostings()) { // 只要有一个Field需要postings
       assert allFields.isEmpty();
       return;
     }
 
     // Sort by field name
-    CollectionUtil.introSort(allFields);
-
+    CollectionUtil.introSort(allFields); // 按照field的name排序，把所有的fields在这里排
+    // 这里把所有需要处理的  FreqProxTermsWriterPerField 封装到 FreqProxFields中，后面读取都需要借助 FreqProxFields
     Fields fields = new FreqProxFields(allFields);
-    applyDeletes(state, fields);
+    applyDeletes(state, fields); // 删除逻辑 todo
     if (sortMap != null) {
       final Sorter.DocMap docMap = sortMap;
       final FieldInfos infos = state.fieldInfos;
@@ -126,7 +126,7 @@ final class FreqProxTermsWriter extends TermsHash {
           };
     }
 
-    try (FieldsConsumer consumer =
+    try (FieldsConsumer consumer =//最终走到Lucene90BlockTreeTermsWriter#write，以后介绍索引文件生成再说
         state.segmentInfo.getCodec().postingsFormat().fieldsConsumer(state)) {
       consumer.write(fields, norms);
     }

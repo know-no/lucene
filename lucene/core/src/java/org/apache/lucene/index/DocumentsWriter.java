@@ -419,7 +419,7 @@ final class DocumentsWriter implements Closeable, Accountable {
       throws IOException {
     boolean hasEvents = preUpdate();
 
-    final DocumentsWriterPerThread dwpt = flushControl.obtainAndLock();
+    final DocumentsWriterPerThread dwpt = flushControl.obtainAndLock(); // 获取 dwpt
     final DocumentsWriterPerThread flushingDWPT;
     long seqNo;
 
@@ -429,7 +429,7 @@ final class DocumentsWriter implements Closeable, Accountable {
       ensureOpen();
       try {
         seqNo =
-            dwpt.updateDocuments(docs, delNode, flushNotifications, numDocsInRAM::incrementAndGet);
+            dwpt.updateDocuments(docs, delNode, flushNotifications, numDocsInRAM::incrementAndGet); // dwpt.updateDocs
       } finally {
         if (dwpt.isAborted()) {
           flushControl.doOnAbort(dwpt);

@@ -590,14 +590,14 @@ public class SortField {
   public IndexSorter getIndexSorter() {
     switch (type) {
       case STRING:
-        return new IndexSorter.StringSorter(
+        return new IndexSorter.StringSorter( // 定义从reader读取专属类型数据
             Provider.NAME, missingValue, reverse, reader -> DocValues.getSorted(reader, field));
       case INT:
         return new IndexSorter.IntSorter(
             Provider.NAME,
             (Integer) missingValue,
             reverse,
-            reader -> DocValues.getNumeric(reader, field));
+            reader -> DocValues.getNumeric(reader, field)); // // 定义从reader读取专属类型数据： number
       case LONG:
         return new IndexSorter.LongSorter(
             Provider.NAME,

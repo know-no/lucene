@@ -21,22 +21,22 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.ByteBlockPool;
-
+//参考： https://juejin.cn/post/7140233960415559710#heading-0
 /* IndexInput that knows how to read the byte slices written
  * by Posting and PostingVector.  We read the bytes in
  * each slice until we hit the end of that slice at which
  * point we read the forwarding address of the next slice
- * and then jump to it.*/
-final class ByteSliceReader extends DataInput {
-  ByteBlockPool pool;
-  int bufferUpto;
-  byte[] buffer;
-  public int upto;
-  int limit;
-  int level;
-  public int bufferOffset;
+ * and then jump to it.*/  //本质是slice的链表，把slice中的数据读取出来。
+final class ByteSliceReader extends DataInput { // 当index之后，我们在内存里构建了倒排等数据结构，在flush阶段，读取内存中的倒排数据持久化成索引文件。
+  ByteBlockPool pool; //倒排数据的两个stream中分别是由多个slice组成的两个链表，ByteSliceReader是用来读取slice的。slice的读取最重要的是判断当前slice的结束位置以及找到下一个slice的位置。ByteSliceReader用endIndex记录了stream的结束位置，用limit记录当前slice的结束位置，因此当limit不等于endIndex的时候，就说明还存在下一个slice，并且下一个slice的地址就是limit后面四个字节的值，而limit的确定是由ByteBlockPool.LEVEL_SIZE_ARRAY根据level计算得到的。
+  int bufferUpto; // pool,即slice所在的byteBlockPool，往往是在内存里构建索引的时候用的那个。 bufferUpTo，pool中的哪个buffer
+  byte[] buffer; // 当前在读取buffer
+  public int upto; //
+  int limit;//当前slice的结束位置
+  int level;//当前读取到的slice level
+  public int bufferOffset; // buffer在pool中的起始位置的start
 
-  public int endIndex;
+  public int endIndex; // 这个数据源的slice链链表的最后一个slice的结束位置的下一个位置.  endIndex-1是最后一个byte的位置
 
   public void init(ByteBlockPool pool, int startIndex, int endIndex) {
 
@@ -63,7 +63,7 @@ final class ByteSliceReader extends DataInput {
 
   public boolean eof() {
     assert upto + bufferOffset <= endIndex;
-    return upto + bufferOffset == endIndex;
+    return upto + bufferOffset == endIndex; // endIndex
   }
 
   @Override

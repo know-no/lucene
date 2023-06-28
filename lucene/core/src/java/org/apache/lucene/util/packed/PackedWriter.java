@@ -29,13 +29,13 @@ final class PackedWriter extends PackedInts.Writer {
   boolean finished;
   final PackedInts.Format format;
   final BulkOperation encoder;
-  final byte[] nextBlocks;
-  final long[] nextValues;
-  final int iterations;
-  int off;
+  final byte[] nextBlocks; // 我们知道BulkOperationPacked在编码压缩数据的时候,把bits放入block中, 但是这里writer的block不是一个概念
+  final long[] nextValues;//nextBlocks中的block ,是 writer 把数据拆分成段, 避免过大,并且PackedWriter对每段数据使用一样的 encoder,即相同的bitsPerValue
+  final int iterations; // 而 AbstractBlockPackedWriter , 在拆段的同时,每个段,还可以用不同 bitsPerValue, 之所以这样, 是因为:
+  int off;              // PackedWriter适用于所有数据量大小差不多的情况，如果数据中存在少量值比较大的，则会影响压缩效果，因为所有value是按最大的值来计算bitsPerValue的。
   int written;
 
-  PackedWriter(
+  PackedWriter( // PackedWriter是已知所要处理的数据的bitsPerValue，根据这个bitsPerValue获取对应的编码器，因此所有的数据都使用一样的编码器。
       PackedInts.Format format, DataOutput out, int valueCount, int bitsPerValue, int mem) {
     super(out, valueCount, bitsPerValue);
     this.format = format;

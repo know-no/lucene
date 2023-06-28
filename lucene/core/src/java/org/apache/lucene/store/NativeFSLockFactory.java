@@ -39,7 +39,7 @@ import org.apache.lucene.util.IOUtils;
  * the JVM exits abnormally.
  *
  * <p>The primary benefit of {@link NativeFSLockFactory} is that locks (not the lock file itself)
- * will be properly removed (by the OS) if the JVM has an abnormal exit.
+ * will be properly removed (by the OS) if the JVM has an abnormal exit. // jvm异常退出时候, 锁会被os清除掉
  *
  * <p>Note that, unlike {@link SimpleFSLockFactory}, the existence of leftover lock files in the
  * filesystem is fine because the OS will free the locks held against these files even though the
@@ -110,7 +110,7 @@ public final class NativeFSLockFactory extends FSLockFactory {
       FileLock lock = null;
       try {
         channel = FileChannel.open(realPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        lock = channel.tryLock();
+        lock = channel.tryLock(); // 有没有一种可能, 进程不感知到, 但是os层把锁释放了?
         if (lock != null) {
           return new NativeFSLock(lock, channel, realPath, creationTime);
         } else {
