@@ -34,7 +34,7 @@ import org.apache.lucene.util.BytesRefBuilder;
  *
  * @lucene.experimental
  */
-class SimpleTextSkipWriter extends MultiLevelSkipListWriter {
+class SimpleTextSkipWriter extends MultiLevelSkipListWriter { // 存在text里的 skiplist
 
   static final int skipMultiplier = 3;
   static final int maxSkipLevels = 4;

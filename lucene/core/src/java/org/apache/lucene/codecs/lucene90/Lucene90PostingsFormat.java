@@ -404,11 +404,11 @@ public final class Lucene90PostingsFormat extends PostingsFormat {
 
   @Override
   public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-    PostingsWriterBase postingsWriter = new Lucene90PostingsWriter(state);
+    PostingsWriterBase postingsWriter = new Lucene90PostingsWriter(state); // .doc .pos .pay 文件的写入类
     boolean success = false;
     try {
       FieldsConsumer ret =
-          new Lucene90BlockTreeTermsWriter(
+          new Lucene90BlockTreeTermsWriter( //  .tim .tip .tmd
               state, postingsWriter, minTermBlockSize, maxTermBlockSize);
       success = true;
       return ret;
@@ -438,11 +438,11 @@ public final class Lucene90PostingsFormat extends PostingsFormat {
    * Holds all state required for {@link Lucene90PostingsReader} to produce a {@link
    * org.apache.lucene.index.PostingsEnum} without re-seeking the terms dict.
    *
-   * @lucene.internal
-   */
+   * @lucene.internal // 每个term以及它的倒排信息在被写入之后，都会产生的一个state, 状态里有本term写入在.doc .pos .pay几个文件里
+   */                 // 的倒排信息的指针
   public static final class IntBlockTermState extends BlockTermState {
     /** file pointer to the start of the doc ids enumeration, in {@link #DOC_EXTENSION} file */
-    public long docStartFP;
+    public long docStartFP;//
     /** file pointer to the start of the positions enumeration, in {@link #POS_EXTENSION} file */
     public long posStartFP;
     /** file pointer to the start of the payloads enumeration, in {@link #PAY_EXTENSION} file */
@@ -451,7 +451,7 @@ public final class Lucene90PostingsFormat extends PostingsFormat {
      * file offset for the start of the skip list, relative to docStartFP, if there are more than
      * {@link ForUtil#BLOCK_SIZE} docs; otherwise -1
      */
-    public long skipOffset;
+    public long skipOffset; // 写入的doc信息，除此之外 我们还构建了skiplist， 这个是skiplist 的游标
     /**
      * file offset for the last position in the last block, if there are more than {@link
      * ForUtil#BLOCK_SIZE} positions; otherwise -1

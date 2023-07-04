@@ -625,7 +625,7 @@ public class FieldInfos implements Iterable<FieldInfo> {
   }
 
   static final class Builder {
-    private final HashMap<String, FieldInfo> byName = new HashMap<>();
+    private final HashMap<String, FieldInfo> byName = new HashMap<>(); // 通过fieldname -> FieldInfo
     final FieldNumbers globalFieldNumbers;
     private boolean finished;
 

@@ -122,27 +122,27 @@ public abstract class PushPostingsWriterBase extends PostingsWriterBase {
     } else {
       normValues = norms.getNorms(fieldInfo);
     }
-    startTerm(normValues);
-    postingsEnum = termsEnum.postings(postingsEnum, enumFlags);
+    startTerm(normValues); // 写： start 做准备工作
+    postingsEnum = termsEnum.postings(postingsEnum, enumFlags); // 获取PostingsEnum
     assert postingsEnum != null;
 
-    int docFreq = 0;
-    long totalTermFreq = 0;
-    while (true) {
-      int docID = postingsEnum.nextDoc();
+    int docFreq = 0; // 出现在多少个doc里
+    long totalTermFreq = 0; // 总共出现了多少次
+    while (true) { // 不断迭代term下的doc
+      int docID = postingsEnum.nextDoc(); // nextDoc
       if (docID == PostingsEnum.NO_MORE_DOCS) {
         break;
       }
       docFreq++;
-      docsSeen.set(docID);
+      docsSeen.set(docID); // docsSeen 后面可以用来做bloomFilter?
       int freq;
       if (writeFreqs) {
-        freq = postingsEnum.freq();
+        freq = postingsEnum.freq(); // 获取当前docId ， 此term在此docId的freq
         totalTermFreq += freq;
       } else {
         freq = -1;
       }
-      startDoc(docID, freq);
+      startDoc(docID, freq); // 准备一个doc的倒排信息的写入状态
 
       if (writePositions) {
         for (int i = 0; i < freq; i++) {
@@ -161,7 +161,7 @@ public abstract class PushPostingsWriterBase extends PostingsWriterBase {
         }
       }
 
-      finishDoc();
+      finishDoc(); // 结束一个doc的倒排信息的写入
     }
 
     if (docFreq == 0) {
@@ -170,7 +170,7 @@ public abstract class PushPostingsWriterBase extends PostingsWriterBase {
       BlockTermState state = newTermState();
       state.docFreq = docFreq;
       state.totalTermFreq = writeFreqs ? totalTermFreq : -1;
-      finishTerm(state);
+      finishTerm(state); // finish以填补信息
       return state;
     }
   }

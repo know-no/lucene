@@ -87,7 +87,7 @@ final class FreqProxTermsWriter extends TermsHash {
     super.flush(fieldsToFlush, state, sortMap, norms); // 首先调用父类的方法， 父类会先调用next，所以实际上，会先刷写term vector，如果有的话
 
     // Gather all fields that saw any postings:
-    List<FreqProxTermsWriterPerField> allFields = new ArrayList<>();
+    List<FreqProxTermsWriterPerField> allFields = new ArrayList<>(); // 把所有flush倒排信息的field收集起来
 
     for (TermsHashPerField f : fieldsToFlush.values()) {
       final FreqProxTermsWriterPerField perField = (FreqProxTermsWriterPerField) f;
@@ -106,9 +106,9 @@ final class FreqProxTermsWriter extends TermsHash {
     // Sort by field name
     CollectionUtil.introSort(allFields); // 按照field的name排序，把所有的fields在这里排
     // 这里把所有需要处理的  FreqProxTermsWriterPerField 封装到 FreqProxFields中，后面读取都需要借助 FreqProxFields
-    Fields fields = new FreqProxFields(allFields);
+    Fields fields = new FreqProxFields(allFields); // FreqProxFields 用来构建倒排信息在内存在的表示，以及访问
     applyDeletes(state, fields); // 删除逻辑 todo
-    if (sortMap != null) {
+    if (sortMap != null) { // 因为有sortMap，所有要重新排布
       final Sorter.DocMap docMap = sortMap;
       final FieldInfos infos = state.fieldInfos;
       fields =
@@ -119,14 +119,14 @@ final class FreqProxTermsWriter extends TermsHash {
               Terms terms = in.terms(field);
               if (terms == null) {
                 return null;
-              } else {
+              } else { // 包装一下， 返回的都是 排过序的
                 return new SortingTerms(terms, infos.fieldInfo(field).getIndexOptions(), docMap);
               }
             }
           };
     }
-
-    try (FieldsConsumer consumer =//最终走到Lucene90BlockTreeTermsWriter#write，以后介绍索引文件生成再说
+    // Lucene90PostingsWriter  /最终走到Lucene90BlockTreeTermsWriter#write，以后介绍索引文件生成再说
+    try (FieldsConsumer consumer = //lucene90PostingsFormat
         state.segmentInfo.getCodec().postingsFormat().fieldsConsumer(state)) {
       consumer.write(fields, norms);
     }

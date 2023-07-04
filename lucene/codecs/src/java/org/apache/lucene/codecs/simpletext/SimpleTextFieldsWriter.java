@@ -76,7 +76,7 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
       throws IOException {
 
     // for each field
-    for (String field : fields) {
+    for (String field : fields) {     // 遍历每个fields， 以及每个field下的terms
       Terms terms = fields.terms(field);
       if (terms == null) {
         // Annoyingly, this can happen!
@@ -112,21 +112,21 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
         }
       }
 
-      TermsEnum termsEnum = terms.iterator();
+      TermsEnum termsEnum = terms.iterator(); // 获取 TermsEnum 迭代器
       PostingsEnum postingsEnum = null;
 
-      // for each term in field
+      // for each term in field // 多重循环：第一重循环：1. 获取这个Field下的每个term
       while (true) {
-        BytesRef term = termsEnum.next();
+        BytesRef term = termsEnum.next(); // 1.
         if (term == null) {
           break;
         }
-        docCount = 0;
-        skipWriter.resetSkip();
-        competitiveImpactAccumulator.clear();
+        docCount = 0; // 每个term的doc count 预设为0
+        skipWriter.resetSkip(); //  重置 skiplist 的单个写入
+        competitiveImpactAccumulator.clear(); // 重置 competitive, 重新计算这个term
         lastDocFilePointer = -1;
 
-        postingsEnum = termsEnum.postings(postingsEnum, flags);
+        postingsEnum = termsEnum.postings(postingsEnum, flags); // 获取 postingsEnum
 
         assert postingsEnum != null
             : "termsEnum=" + termsEnum + " hasPos=" + hasPositions + " flags=" + flags;
@@ -134,13 +134,13 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
         boolean wroteTerm = false;
 
         // for each doc in field+term
-        while (true) {
-          int doc = postingsEnum.nextDoc();
+        while (true) { // 查看这个term下的倒排信息
+          int doc = postingsEnum.nextDoc(); // 获取下一个doc
           if (doc == PostingsEnum.NO_MORE_DOCS) {
             break;
           }
 
-          if (!wroteTerm) {
+          if (!wroteTerm) { // 现在list 头的地方写上 field （name之类的信息）
 
             if (!wroteField) {
               // we lazily do this, in case the field had
@@ -153,15 +153,15 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
 
             // we lazily do this, in case the term had
             // zero docs
-            write(TERM);
+            write(TERM); // 把term的值写上
             write(term);
             newline();
             wroteTerm = true;
           }
-          if (lastDocFilePointer == -1) {
+          if (lastDocFilePointer == -1) { // 如果都没写过， 即-1
             lastDocFilePointer = out.getFilePointer();
           }
-          write(DOC);
+          write(DOC);  // 写入doc， freq， <position, offset, payload>
           write(Integer.toString(doc));
           newline();
           if (hasFreqs) {
@@ -175,7 +175,7 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
               int lastStartOffset = 0;
 
               // for each pos in field+term+doc
-              for (int i = 0; i < freq; i++) {
+              for (int i = 0; i < freq; i++) { // term在这个doc里有多少次出现
                 int position = postingsEnum.nextPosition();
 
                 write(POS);
@@ -207,19 +207,19 @@ class SimpleTextFieldsWriter extends FieldsConsumer {
                 }
               }
             }
-            competitiveImpactAccumulator.add(freq, getNorm(doc, norms));
+            competitiveImpactAccumulator.add(freq, getNorm(doc, norms)); // 计算 competitive
           } else {
             competitiveImpactAccumulator.add(1, getNorm(doc, norms));
           }
           docCount++;
-          if (docCount != 0 && docCount % SimpleTextSkipWriter.BLOCK_SIZE == 0) {
-            skipWriter.bufferSkip(doc, lastDocFilePointer, docCount, competitiveImpactAccumulator);
+          if (docCount != 0 && docCount % SimpleTextSkipWriter.BLOCK_SIZE == 0) { // 每8个，pack一下，然后写入skip data
+            skipWriter.bufferSkip(doc, lastDocFilePointer, docCount, competitiveImpactAccumulator); // buffer 缓存下来
             competitiveImpactAccumulator.clear();
             lastDocFilePointer = -1;
           }
         }
-        if (docCount >= SimpleTextSkipWriter.BLOCK_SIZE) {
-          skipWriter.writeSkip(out);
+        if (docCount >= SimpleTextSkipWriter.BLOCK_SIZE) { // 如果最后大于8，说明这个term里有超过8个doc，需要
+          skipWriter.writeSkip(out); //
         }
       }
     }

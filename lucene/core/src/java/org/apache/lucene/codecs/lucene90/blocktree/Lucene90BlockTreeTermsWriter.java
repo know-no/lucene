@@ -265,7 +265,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
         IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            Lucene90BlockTreeTermsReader.TERMS_EXTENSION);
+            Lucene90BlockTreeTermsReader.TERMS_EXTENSION); // 创建 term dict
     termsOut = state.directory.createOutput(termsName, state.context);
     boolean success = false;
     IndexOutput metaOut = null, indexOut = null;
@@ -342,7 +342,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
     // if (DEBUG) System.out.println("\nBTTW.write seg=" + segment);
 
     String lastField = null;
-    for (String field : fields) {
+    for (String field : fields) { // 遍历Fields
       assert lastField == null || lastField.compareTo(field) < 0;
       lastField = field;
 
@@ -353,8 +353,8 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
       }
 
       TermsEnum termsEnum = terms.iterator();
-      TermsWriter termsWriter = new TermsWriter(fieldInfos.fieldInfo(field));
-      while (true) {
+      TermsWriter termsWriter = new TermsWriter(fieldInfos.fieldInfo(field)); // 每个Field， 构建一个TermsWriter
+      while (true) { //
         BytesRef term = termsEnum.next();
         // if (DEBUG) System.out.println("BTTW: next term " + term);
 
@@ -364,10 +364,10 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
 
         // if (DEBUG) System.out.println("write field=" + fieldInfo.name + " term=" +
         // brToString(term));
-        termsWriter.write(term, termsEnum, norms);
-      }
-
-      termsWriter.finish();
+        termsWriter.write(term, termsEnum, norms);// 实际写入，write函数内部会通过XXXPostingsWriter将数据信息写入.doc，.pos、.pay三个文件中。
+      } // 辅助以： PostingsWriterBase  -> Lucene90PostingsWriter
+      //
+      termsWriter.finish(); // finish函数会通过其内部的writeBlocks函数将索引信息写入.tim、.tip中。
 
       // if (DEBUG) System.out.println("\nBTTW.write done seg=" + segment + " field=" + field);
     }
@@ -594,7 +594,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
     // term/sub-block starting with 't'.  We use this to figure out when
     // to write a new block:
     private final BytesRefBuilder lastTerm = new BytesRefBuilder();
-    private int[] prefixStarts = new int[8];
+    private int[] prefixStarts = new int[8]; // 多少个term以这个pos为相同前缀
 
     // Pending stack of terms and blocks.  As terms arrive (in sorted order)
     // we append to this stack, and once the top of the stack has enough
@@ -1008,7 +1008,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
       this.fieldInfo = fieldInfo;
       assert fieldInfo.getIndexOptions() != IndexOptions.NONE;
       docsSeen = new FixedBitSet(maxDoc);
-      postingsWriter.setField(fieldInfo);
+      postingsWriter.setField(fieldInfo); // 重置Field: SkipWriter.setField
     }
 
     /** Writes one term's worth of postings. */
@@ -1020,15 +1020,15 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
         System.out.println("BTTW: write term=" + brToString(text) + " prefixStarts=" + Arrays.toString(tmp) + " pending.size()=" + pending.size());
       }
       */
-
+      // 写入后term返回 state，state是写入后的状态. 一个term写完后的状态
       BlockTermState state = postingsWriter.writeTerm(text, termsEnum, docsSeen, norms);
-      if (state != null) {
+      if (state != null) { // 写完之后，就可以构建 term 的索引了
 
         assert state.docFreq != 0;
         assert fieldInfo.getIndexOptions() == IndexOptions.DOCS
                 || state.totalTermFreq >= state.docFreq
             : "postingsWriter=" + postingsWriter;
-        pushTerm(text);
+        pushTerm(text);//迭代获取text的时候，是排好序的，这里push进去，计算prefix,suffix，等待攒够了数
 
         PendingTerm term = new PendingTerm(text, state);
         pending.add(term);
@@ -1068,7 +1068,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
 
         // How many items on top of the stack share the current suffix
         // we are closing:
-        int prefixTopSize = pending.size() - prefixStarts[i];
+        int prefixTopSize = pending.size() - prefixStarts[i]; // 在当前位置有多少个term享有相同前缀；
         if (prefixTopSize >= minItemsInBlock) {
           // if (DEBUG) System.out.println("pushTerm i=" + i + " prefixTopSize=" + prefixTopSize + "
           // minItemsInBlock=" + minItemsInBlock);

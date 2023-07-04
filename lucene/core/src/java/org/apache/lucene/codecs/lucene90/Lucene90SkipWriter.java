@@ -36,33 +36,33 @@ import org.apache.lucene.store.IndexOutput;
  *  d d d d d d d d d d d d d d d d d d d d d d d d d d d d (posting list)
  *                          ^                       ^       (level 0 skip point)
  * </pre>
- *
+ * // 会忽略block#0的第一个doc，因为对于skip无用，并且最后一个vInts block也不用探查
  * <p>Note that skipWriter will ignore first document in block#0, since it is useless as a skip
  * point. Also, we'll never skip into the vInts block, only record skip data at the start its start
  * point(if it exist).
- *
+ * //对于每个skip point， 记录： 前一个位置的docId，比如对于pos：12，记录docID[11]  2. 它的关联文件的指针 3. 关联的信息 4 起始offset
  * <p>For each skip point, we will record: 1. docID in former position, i.e. for position 12, record
  * docID[11], etc. 2. its related file points(position, payload), 3. related numbers or
  * uptos(position, payload). 4. start offset.
  */
-final class Lucene90SkipWriter extends MultiLevelSkipListWriter {
-  private int[] lastSkipDoc;
-  private long[] lastSkipDocPointer;
-  private long[] lastSkipPosPointer;
-  private long[] lastSkipPayPointer;
-  private int[] lastPayloadByteUpto;
+final class Lucene90SkipWriter extends MultiLevelSkipListWriter { // 是lucene90 的skip data 写入类,特点是：支持block ints 的跳跃
+  private int[] lastSkipDoc; //下标是level， 值是level的前一个跳表节点的docID
+  private long[] lastSkipDocPointer; //下标是level，值是level的前一个block的doc索引文件的结束位置，其实就是当前block的开始的位置
+  private long[] lastSkipPosPointer; //下标是level，值是指定level的前一个block的pos索引文件的结束位置，其实就是当前block的开始的位置
+  private long[] lastSkipPayPointer; //下标是level，值是指定level的前一个block的pay索引文件的结束位置，其实就是当前block的开始的位置
+  private int[] lastPayloadByteUpto;// 下标是level，值是指定level的前一个block的payload缓存的结束位置，其实就是当前block的开始的位置
 
   private final IndexOutput docOut;
   private final IndexOutput posOut;
   private final IndexOutput payOut;
 
-  private int curDoc;
-  private long curDocPointer;
-  private long curPosPointer;
-  private long curPayPointer;
-  private int curPosBufferUpto;
-  private int curPayloadByteUpto;
-  private CompetitiveImpactAccumulator[] curCompetitiveFreqNorms;
+  private int curDoc; // 当前block的docID: 指的是block的最后
+  private long curDocPointer; // 当前block在doc文件中的结束位置
+  private long curPosPointer; // 当前block在pos文件中的结束位置
+  private long curPayPointer; // 当前block在pay文件中的结束位置
+  private int curPosBufferUpto;// 当前block在posBuffer中的结束位置
+  private int curPayloadByteUpto; // 当前block在payBuffer中的结束位置
+  private CompetitiveImpactAccumulator[] curCompetitiveFreqNorms; // 每一层的Impact计算结果
   private boolean fieldHasPositions;
   private boolean fieldHasOffsets;
   private boolean fieldHasPayloads;
@@ -115,7 +115,7 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter {
 
   @Override
   public void resetSkip() {
-    lastDocFP = docOut.getFilePointer();
+    lastDocFP = docOut.getFilePointer(); // 所谓last，则是当下的，即将开始的，可以写入的位置
     if (fieldHasPositions) {
       lastPosFP = posOut.getFilePointer();
       if (fieldHasOffsets || fieldHasPayloads) {
@@ -155,7 +155,7 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter {
   }
 
   /** Sets the values for the current skip data. */
-  public void bufferSkip(
+  public void bufferSkip( //
       int doc,
       CompetitiveImpactAccumulator competitiveFreqNorms,
       int numDocs,
@@ -179,13 +179,13 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter {
 
   @Override
   protected void writeSkipData(int level, DataOutput skipBuffer) throws IOException {
+//skipBuffer里存的是：docIdDelata,block在doc文件的地址delta,block在pos文件的地址delta,
+    int delta = curDoc - lastSkipDoc[level]; // level层的前一个调表节点的docId， 计算delta如果是第一次写入就是当前curDoc
 
-    int delta = curDoc - lastSkipDoc[level];
+    skipBuffer.writeVInt(delta); // 写vint delta， 到此 层的buffer里
+    lastSkipDoc[level] = curDoc; // 此层buffer的当前docId，修改
 
-    skipBuffer.writeVInt(delta);
-    lastSkipDoc[level] = curDoc;
-
-    skipBuffer.writeVLong(curDocPointer - lastSkipDocPointer[level]);
+    skipBuffer.writeVLong(curDocPointer - lastSkipDocPointer[level]); //
     lastSkipDocPointer[level] = curDocPointer;
 
     if (fieldHasPositions) {

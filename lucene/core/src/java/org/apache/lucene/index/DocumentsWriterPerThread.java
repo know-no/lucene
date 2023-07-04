@@ -115,7 +115,7 @@ final class DocumentsWriterPerThread implements Accountable {
 
   // Updates for our still-in-RAM (to be flushed next) segment
   private final BufferedUpdates pendingUpdates;
-  private final SegmentInfo segmentInfo; // Current segment we are working on
+  private final SegmentInfo segmentInfo; // Current segment we are working on // 当前处理的段文件的info, 应该每次flush完成后，会清空
   private boolean aborted = false; // True if we aborted
   private SetOnce<Boolean> flushPending = new SetOnce<>();
   private volatile long lastCommittedBytesUsed;
@@ -342,18 +342,18 @@ final class DocumentsWriterPerThread implements Accountable {
     assert flushPending.get() == Boolean.TRUE;
     assert numDocsInRAM > 0;
     assert deleteSlice.isEmpty() : "all deletes must be applied in prepareFlush";
-    segmentInfo.setMaxDoc(numDocsInRAM);
-    final SegmentWriteState flushState =
+    segmentInfo.setMaxDoc(numDocsInRAM); // 设置最多的docs
+    final SegmentWriteState flushState = // 段的写入状态
         new SegmentWriteState(
             infoStream,
             directory,
             segmentInfo,
-            fieldInfos.finish(),
-            pendingUpdates,
+            fieldInfos.finish(), // finish 只是为了
+            pendingUpdates, // buffered的updates
             new IOContext(new FlushInfo(numDocsInRAM, lastCommittedBytesUsed)));
     final double startMBUsed = lastCommittedBytesUsed / 1024. / 1024.;
 
-    // Apply delete-by-docID now (delete-byDocID only
+    // Apply delete-by-docID now (delete-byDocID only // 和删除相关的内容：  delete-by-docID
     // happens when an exception is hit processing that
     // doc, eg if analyzer has some problem w/ the text):
     if (numDeletedDocIds > 0) {
@@ -388,7 +388,7 @@ final class DocumentsWriterPerThread implements Accountable {
       } else {
         softDeletedDocs = null;
       }
-      sortMap = indexingChain.flush(flushState); // dwpt执行flush的时候,调用indexingChain.flush
+      sortMap = indexingChain.flush(flushState); // dwpt执行flush的时候,调用专属的indexingChain.flush
       if (softDeletedDocs == null) {
         flushState.softDelCountOnFlush = 0;
       } else {

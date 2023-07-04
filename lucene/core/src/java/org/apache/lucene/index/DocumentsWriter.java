@@ -114,7 +114,7 @@ final class DocumentsWriter implements Closeable, Accountable {
       LiveIndexWriterConfig config,
       Directory directoryOrig,
       Directory directory,
-      FieldInfos.FieldNumbers globalFieldNumberMap) {
+      FieldInfos.FieldNumbers globalFieldNumberMap) {// 每个segments info里的fields都被取出来了
     this.config = config;
     this.infoStream = config.getInfoStream();
     this.deleteQueue = new DocumentsWriterDeleteQueue(infoStream);
@@ -124,7 +124,7 @@ final class DocumentsWriter implements Closeable, Accountable {
               final FieldInfos.Builder infos = new FieldInfos.Builder(globalFieldNumberMap);
               return new DocumentsWriterPerThread(
                   indexCreatedVersionMajor,
-                  segmentNameSupplier.get(),
+                  segmentNameSupplier.get(), // 每次get都获得一个不同的名字。内部由个counter
                   directoryOrig,
                   directory,
                   config,
@@ -484,13 +484,13 @@ final class DocumentsWriter implements Closeable, Accountable {
          */
         try {
           assert assertTicketQueueModification(flushingDWPT.deleteQueue);
-          // Each flush is assigned a ticket in the order they acquire the ticketQueue lock
+          // Each flush is assigned a ticket in the order they acquire the ticketQueue lock // 要先获得flush准可
           ticket = ticketQueue.addFlushTicket(flushingDWPT);
           final int flushingDocsInRam = flushingDWPT.getNumDocsInRAM();
           boolean dwptSuccess = false;
           try {
             // flush concurrently without locking
-            final FlushedSegment newSegment = flushingDWPT.flush(flushNotifications);
+            final FlushedSegment newSegment = flushingDWPT.flush(flushNotifications); // 开始flush
             ticketQueue.addSegment(ticket, newSegment);
             dwptSuccess = true;
           } finally {
@@ -669,7 +669,7 @@ final class DocumentsWriter implements Closeable, Accountable {
       DocumentsWriterPerThread flushingDWPT;
       // Help out with flushing:
       while ((flushingDWPT = flushControl.nextPendingFlush()) != null) {
-        anythingFlushed |= doFlush(flushingDWPT);
+        anythingFlushed |= doFlush(flushingDWPT); // 实际对一个dwpt开始做 doFlush
       }
       // If a concurrent flush is still in flight wait for it
       flushControl.waitForFlush();

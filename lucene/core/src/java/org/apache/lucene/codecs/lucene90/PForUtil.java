@@ -24,7 +24,7 @@ import org.apache.lucene.util.LongHeap;
 import org.apache.lucene.util.packed.PackedInts;
 
 /** Utility class to encode sequences of 128 small positive integers. */
-final class PForUtil {
+final class PForUtil { // 工具类： 编码128个小正整数
 
   private static final int MAX_EXCEPTIONS = 7;
   private static final int HALF_BLOCK_SIZE = ForUtil.BLOCK_SIZE / 2;
@@ -60,30 +60,30 @@ final class PForUtil {
   /** Encode 128 integers from {@code longs} into {@code out}. */
   void encode(long[] longs, DataOutput out) throws IOException {
     // Determine the top MAX_EXCEPTIONS + 1 values
-    final LongHeap top = new LongHeap(MAX_EXCEPTIONS + 1);
+    final LongHeap top = new LongHeap(MAX_EXCEPTIONS + 1);//8个元素的小跟堆，另外LongHeap弃用0位置，从1-8，获取最大的八个
     for (int i = 0; i <= MAX_EXCEPTIONS; ++i) {
-      top.push(longs[i]);
+      top.push(longs[i]); // 先加八个元素进去
     }
-    long topValue = top.top();
+    long topValue = top.top(); // 获取八个中最小的那个
     for (int i = MAX_EXCEPTIONS + 1; i < ForUtil.BLOCK_SIZE; ++i) {
-      if (longs[i] > topValue) {
-        topValue = top.updateTop(longs[i]);
+      if (longs[i] > topValue) { // 当有元素大于最小的那个，
+        topValue = top.updateTop(longs[i]);// 更新
       }
     }
 
     long max = 0L;
     for (int i = 1; i <= top.size(); ++i) {
       max = Math.max(max, top.get(i));
-    }
+    } // 获取这些元素里的最大值， 但是干嘛不再之前的循环里做。。。。
 
     final int maxBitsRequired = PackedInts.bitsRequired(max);
     // We store the patch on a byte, so we can't decrease the number of bits required by more than 8
-    final int patchedBitsRequired =
+    final int patchedBitsRequired = // (最小值) 和 (最大值的所需bits-8)
         Math.max(PackedInts.bitsRequired(topValue), maxBitsRequired - 8);
     int numExceptions = 0;
     final long maxUnpatchedValue = (1L << patchedBitsRequired) - 1;
     for (int i = 2; i <= top.size(); ++i) {
-      if (top.get(i) > maxUnpatchedValue) {
+      if (top.get(i) > maxUnpatchedValue) { // 超过最大可以patch的上限值
         numExceptions++;
       }
     }
@@ -94,7 +94,7 @@ final class PForUtil {
         if (longs[i] > maxUnpatchedValue) {
           exceptions[exceptionCount * 2] = (byte) i;
           exceptions[exceptionCount * 2 + 1] = (byte) (longs[i] >>> patchedBitsRequired);
-          longs[i] &= maxUnpatchedValue;
+          longs[i] &= maxUnpatchedValue; // 只留下低位bits： maxBitsRequired 个bit
           exceptionCount++;
         }
       }

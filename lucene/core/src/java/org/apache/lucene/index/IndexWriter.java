@@ -1130,7 +1130,7 @@ public class IndexWriter
               config,
               directoryOrig,
               directory,
-              globalFieldNumberMap);
+              globalFieldNumberMap); // 每个segments info里的fields都被取出来了
       readerPool =
           new ReaderPool(
               directory,
@@ -1258,7 +1258,7 @@ public class IndexWriter
     final FieldNumbers map =
         new FieldNumbers(config.softDeletesField, segmentInfos.getIndexCreatedVersionMajor());
 
-    for (SegmentCommitInfo info : segmentInfos) {
+    for (SegmentCommitInfo info : segmentInfos) { // 把每个segmentsinfo里的field都取出来
       FieldInfos fis = readFieldInfos(info);
       for (FieldInfo fi : fis) {
         map.addOrGet(fi);
@@ -3971,7 +3971,7 @@ public class IndexWriter
    * Moves all in-memory segments to the {@link Directory}, but does not commit (fsync) them (call
    * {@link #commit} for that).
    */
-  public final void flush() throws IOException {
+  public final void flush() throws IOException { // flush 的入口
     flush(true, true);
   }
 
@@ -4005,7 +4005,7 @@ public class IndexWriter
           "this writer hit an unrecoverable error; cannot flush", tragedy.get());
     }
 
-    doBeforeFlush();
+    doBeforeFlush(); // flush 之前 doBefore
     testPoint("startDoFlush");
     boolean success = false;
     try {

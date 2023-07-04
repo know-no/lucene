@@ -39,7 +39,7 @@ public final class LongHeap {
    * @param maxSize the maximum size of the heap, or if negative, the initial size of an unbounded
    *     heap
    */
-  public LongHeap(int maxSize) {
+  public LongHeap(int maxSize) { // 一个最小堆的实现
     final int heapSize;
     if (maxSize < 1 || maxSize >= ArrayUtil.MAX_ARRAY_LENGTH) {
       // Throw exception to prevent confusing OOME:
@@ -47,7 +47,7 @@ public final class LongHeap {
           "maxSize must be > 0 and < " + (ArrayUtil.MAX_ARRAY_LENGTH - 1) + "; got: " + maxSize);
     }
     // NOTE: we add +1 because all access to heap is 1-based not 0-based.  heap[0] is unused.
-    heapSize = maxSize + 1;
+    heapSize = maxSize + 1; // 是因为想用 1-based, 这样方便计算孩子节点
     this.maxSize = maxSize;
     this.heap = new long[heapSize];
   }
@@ -133,8 +133,8 @@ public final class LongHeap {
    * @return the new 'top' element after shuffling the heap.
    */
   public final long updateTop(long value) {
-    heap[1] = value;
-    downHeap(1);
+    heap[1] = value; // 放到堆顶
+    downHeap(1); // 然后下沉
     return heap[1];
   }
 
@@ -162,8 +162,8 @@ public final class LongHeap {
 
   private void downHeap(int i) {
     long value = heap[i]; // save top value
-    int j = i << 1; // find smaller child
-    int k = j + 1;
+    int j = i << 1; // find smaller child // 两个孩子， 左孩子节点
+    int k = j + 1;                                   //右孩子节点
     if (k <= size && heap[k] < heap[j]) {
       j = k;
     }

@@ -25,7 +25,7 @@ import org.apache.lucene.index.TermState;
  *
  * @lucene.internal
  */
-public class BlockTermState extends OrdTermState {
+public class BlockTermState extends OrdTermState { // 维持着所有的状态：可以产出PostingsEnum的状态，而不用重新seek terms dict
   /** how many docs have this term */
   public int docFreq;
   /** total number of occurrences of this term */

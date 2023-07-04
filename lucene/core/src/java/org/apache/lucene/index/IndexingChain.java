@@ -234,10 +234,10 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
 
     // NOTE: caller (DocumentsWriterPerThread) handles
     // aborting on any exception from this method
-    Sorter.DocMap sortMap = maybeSortSegment(state);
-    int maxDoc = state.segmentInfo.maxDoc();
+    Sorter.DocMap sortMap = maybeSortSegment(state); // 用sort field 来 进行sort
+    int maxDoc = state.segmentInfo.maxDoc(); // doFlush执行前，设置了
     long t0 = System.nanoTime();
-    writeNorms(state, sortMap);
+    writeNorms(state, sortMap); // ****** 1  写norms, norms还和权重有关，寻求Impact.    =>>>>> .nvd .nvm
     if (infoStream.isEnabled("IW")) {
       infoStream.message("IW", ((System.nanoTime() - t0) / 1000000) + " msec to write norms");
     }
@@ -250,46 +250,46 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
             state.segmentSuffix);
 
     t0 = System.nanoTime();
-    writeDocValues(state, sortMap); // 刷写docvalue
+    writeDocValues(state, sortMap); // ****** 2  刷写docvalue  dvd dvm
     if (infoStream.isEnabled("IW")) {
       infoStream.message("IW", ((System.nanoTime() - t0) / 1000000) + " msec to write docValues");
     }
 
     t0 = System.nanoTime();
-    writePoints(state, sortMap);
+    writePoints(state, sortMap); // ******* 3  points  // kdm kdi kdd
     if (infoStream.isEnabled("IW")) {
       infoStream.message("IW", ((System.nanoTime() - t0) / 1000000) + " msec to write points");
     }
 
     t0 = System.nanoTime();
-    writeVectors(state, sortMap);
+    writeVectors(state, sortMap); // ******* 4 vector (not term vector)
     if (infoStream.isEnabled("IW")) {
       infoStream.message("IW", ((System.nanoTime() - t0) / 1000000) + " msec to write vectors");
     }
 
     // it's possible all docs hit non-aborting exceptions...
     t0 = System.nanoTime();
-    storedFieldsConsumer.finish(maxDoc);
-    storedFieldsConsumer.flush(state, sortMap); // 持久化, 刷写storedfield; 会先调用
+    storedFieldsConsumer.finish(maxDoc); // ********* 5 storefields
+    storedFieldsConsumer.flush(state, sortMap); // ********* 5 storefields 持久化, 刷写storedfield; 会先调用
     if (infoStream.isEnabled("IW")) {
       infoStream.message(
           "IW", ((System.nanoTime() - t0) / 1000000) + " msec to finish stored fields");
     }
 
     t0 = System.nanoTime();
-    Map<String, TermsHashPerField> fieldsToFlush = new HashMap<>();
-    for (int i = 0; i < fieldHash.length; i++) {
-      PerField perField = fieldHash[i];
+    Map<String, TermsHashPerField> fieldsToFlush = new HashMap<>(); // 所有具有倒排、termVector的Field，接下来要对他们刷写到持久化存储
+    for (int i = 0; i < fieldHash.length; i++) {                 // 写成文件了，一个Field一个文件
+      PerField perField = fieldHash[i]; // 获取 所有见到的Field
       while (perField != null) {
-        if (perField.invertState != null) {
-          fieldsToFlush.put(perField.fieldInfo.name, perField.termsHashPerField);
+        if (perField.invertState != null) { // Field 具有倒排信息
+          fieldsToFlush.put(perField.fieldInfo.name, perField.termsHashPerField);//有这这个Field的此次刷写前写入的所有doc的倒排,或则termVecter
         }
         perField = perField.next;
       }
     }
 
-    try (NormsProducer norms =
-        readState.fieldInfos.hasNorms()
+    try (NormsProducer norms = // 之前写入了norms到文件，见：****** 1  写norms， 现在因为要构建 TermDict ， 所以又要读norms， 因为
+        readState.fieldInfos.hasNorms() // 构建term词典需要，根据term的权重，影响力，来构建是为了方便在查询的时候更快
             ? state.segmentInfo.getCodec().normsFormat().normsProducer(readState)
             : null) {
       NormsProducer normsMergeInstance = null;
@@ -297,7 +297,7 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
         // Use the merge instance in order to reuse the same IndexInput for all terms
         normsMergeInstance = norms.getMergeInstance();
       }
-      termsHash.flush(fieldsToFlush, state, sortMap, normsMergeInstance);
+      termsHash.flush(fieldsToFlush, state, sortMap, normsMergeInstance); // ******* 6 倒排链的刷写
     }
     if (infoStream.isEnabled("IW")) {
       infoStream.message(
@@ -310,7 +310,7 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
     // FreqProxTermsWriter does this with
     // FieldInfo.storePayload.
     t0 = System.nanoTime();
-    indexWriterConfig
+    indexWriterConfig         //  ********** 7  提交前的最后一步， 刷写 Field Info
         .getCodec()
         .fieldInfosFormat()
         .write(state.directory, state.segmentInfo, "", state.fieldInfos, IOContext.DEFAULT);
@@ -484,7 +484,7 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
       }
     }
   }
-
+  // nvm nvd
   private void writeNorms(SegmentWriteState state, Sorter.DocMap sortMap) throws IOException {
     boolean success = false;
     NormsConsumer normsConsumer = null;
@@ -1024,7 +1024,7 @@ final class IndexingChain implements Accountable {// 以field为基本单位来�
     final Similarity similarity;
 
     FieldInvertState invertState; // 在和全局的globalNumber field关联上的时候,被设置 //之后,就是被频繁的reset
-    TermsHashPerField termsHashPerField; // 为每个field处理倒排索引, 或者termVector
+    TermsHashPerField termsHashPerField;//Field里  为每个doc的此Field处理倒排索引, 或者termVector
 
     // Non-null if this field ever had doc values in this
     // segment:
