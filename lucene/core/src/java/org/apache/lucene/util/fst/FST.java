@@ -72,17 +72,17 @@ public final class FST<T> implements Accountable {
   private static final long BASE_RAM_BYTES_USED =
       RamUsageEstimator.shallowSizeOfInstance(FST.class);
 
-  private static final int BIT_FINAL_ARC = 1 << 0;
-  static final int BIT_LAST_ARC = 1 << 1;
-  static final int BIT_TARGET_NEXT = 1 << 2;
+  private static final int BIT_FINAL_ARC = 1 << 0;// arc 对应字符是否是term的最后一个字符
+  static final int BIT_LAST_ARC = 1 << 1; // arc是不是当前节点的最后一个出边（按照字典序判断）
+  static final int BIT_TARGET_NEXT = 1 << 2; //存储FST的二进制数组中紧临的下一个字符区间数据是不是当前字符的下一个字符
 
   // TODO: we can free up a bit if we can nuke this:
-  private static final int BIT_STOP_NODE = 1 << 3;
+  private static final int BIT_STOP_NODE = 1 << 3; // arc的target是否是一个终止节点
 
   /** This flag is set if the arc has an output. */
-  public static final int BIT_ARC_HAS_OUTPUT = 1 << 4;
+  public static final int BIT_ARC_HAS_OUTPUT = 1 << 4; // arc 是否有output值
 
-  private static final int BIT_ARC_HAS_FINAL_OUTPUT = 1 << 5;
+  private static final int BIT_ARC_HAS_FINAL_OUTPUT = 1 << 5; // arc有output值， arc是否有final output的值
 
   /** Value of the arc flags to declare a node with fixed length arcs designed for binary search. */
   // We use this as a marker because this one flag is illegal by itself.
@@ -150,17 +150,17 @@ public final class FST<T> implements Accountable {
   private final int version;
 
   /** Represents a single arc. */
-  public static final class Arc<T> {
+  public static final class Arc<T> { // 和FSTCompiler中的Arc的区别是？ 后者应该代表的是内存中构造过程中的，未持久化的。
 
     // *** Arc fields.
 
-    private int label;
+    private int label; // 这个和下面两个，含义和FSTCompiler中的字段含义相同
 
     private T output;
 
     private long target;
 
-    private byte flags;
+    private byte flags; // 方便当前存储的数据快速解码回去 。 当存储的是msb/10 todo
 
     private T nextFinalOutput;
 
@@ -421,7 +421,7 @@ public final class FST<T> implements Accountable {
     bytes = new BytesStore(bytesPageBits);
     // pad: ensure no node gets address 0 which is reserved to mean
     // the stop state w/ no arcs
-    bytes.writeByte((byte) 0);
+    bytes.writeByte((byte) 0); // 在第一个位置写个0，标识结束。因为读取的时候，是从后往前读取的，读到0就知道是到头了
     emptyOutput = null;
     this.version = VERSION_CURRENT;
   }

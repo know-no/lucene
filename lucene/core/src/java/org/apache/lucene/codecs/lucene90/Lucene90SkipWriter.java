@@ -130,13 +130,13 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter { // 是lucene90
     initialized = false;
   }
 
-  private void initSkip() {
+  private void initSkip() { // org.apache.lucene.codecs.lucene90.Lucene90PostingsWriter.startTerm开启一个新的term的时候才会重置
     if (!initialized) {
       super.resetSkip();
-      Arrays.fill(lastSkipDoc, 0);
-      Arrays.fill(lastSkipDocPointer, lastDocFP);
-      if (fieldHasPositions) {
-        Arrays.fill(lastSkipPosPointer, lastPosFP);
+      Arrays.fill(lastSkipDoc, 0); // 置为0
+      Arrays.fill(lastSkipDocPointer, lastDocFP); // 在reset的时候设置的，上一个block在doc文件中的结束位置。每一层的last信息都是这个值
+      if (fieldHasPositions) {    // 在writeSkiData的时候，会计算delta
+        Arrays.fill(lastSkipPosPointer, lastPosFP); // 同， 在reset的时候设置，
         if (fieldHasPayloads) {
           Arrays.fill(lastPayloadByteUpto, 0);
         }
@@ -155,10 +155,10 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter { // 是lucene90
   }
 
   /** Sets the values for the current skip data. */
-  public void bufferSkip( //
-      int doc,
+  public void bufferSkip( // buffer skip,在内存里生成一个block，以及它对应的索引信息：它最后一个doc的id，对应的pos信息在文件里的结束位置
+      int doc, // 当前生成的这个block，block中的最后一个doc         // pay信息在pay文件里结束位置 // pos信息目前写到了缓存数组的哪里
       CompetitiveImpactAccumulator competitiveFreqNorms,
-      int numDocs,
+      int numDocs, // 共计多少个doc， 包括之前的， 是个总数
       long posFP,
       long payFP,
       int posBufferUpto,
@@ -166,7 +166,7 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter { // 是lucene90
       throws IOException {
     initSkip();
     this.curDoc = doc;
-    this.curDocPointer = docOut.getFilePointer();
+    this.curDocPointer = docOut.getFilePointer(); // 获取写完后的 .doc文件的游标
     this.curPosPointer = posFP;
     this.curPayPointer = payFP;
     this.curPosBufferUpto = posBufferUpto;
@@ -177,16 +177,16 @@ final class Lucene90SkipWriter extends MultiLevelSkipListWriter { // 是lucene90
 
   private final ByteBuffersDataOutput freqNormOut = ByteBuffersDataOutput.newResettableInstance();
 
-  @Override
+  @Override // 在bufferSkip中已经将一个block的索引信息（或者理解为一个节点）写入到某一层的skipBuffe里了
   protected void writeSkipData(int level, DataOutput skipBuffer) throws IOException {
 //skipBuffer里存的是：docIdDelata,block在doc文件的地址delta,block在pos文件的地址delta,
     int delta = curDoc - lastSkipDoc[level]; // level层的前一个调表节点的docId， 计算delta如果是第一次写入就是当前curDoc
 
     skipBuffer.writeVInt(delta); // 写vint delta， 到此 层的buffer里
-    lastSkipDoc[level] = curDoc; // 此层buffer的当前docId，修改
-
-    skipBuffer.writeVLong(curDocPointer - lastSkipDocPointer[level]); //
-    lastSkipDocPointer[level] = curDocPointer;
+    lastSkipDoc[level] = curDoc; // 此层buffer的当前docId，修改此层
+    // 每一level的writerSkipData在读取的时候，初始值是上一个term的最后一个block的结束位置(新term的第一个写入位置),之后便会被cur值取代
+    skipBuffer.writeVLong(curDocPointer - lastSkipDocPointer[level]);//求取delta,所以skipBuffer里写入的一个节点的信息，是
+    lastSkipDocPointer[level] = curDocPointer;        // 计算的delte可以理解为这个block的在doc里的数据的长度是多少
 
     if (fieldHasPositions) {
 

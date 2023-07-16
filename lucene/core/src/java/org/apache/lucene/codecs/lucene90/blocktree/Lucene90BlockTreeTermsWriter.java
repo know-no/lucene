@@ -1029,7 +1029,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
                 || state.totalTermFreq >= state.docFreq
             : "postingsWriter=" + postingsWriter;
         pushTerm(text);//迭代获取text的时候，是排好序的，这里push进去，计算prefix,suffix，等待攒够了数
-
+        // ***** 为构建 FST 做准备
         PendingTerm term = new PendingTerm(text, state);
         pending.add(term);
         // if (DEBUG) System.out.println("    add pending term = " + text + " pending.size()=" +

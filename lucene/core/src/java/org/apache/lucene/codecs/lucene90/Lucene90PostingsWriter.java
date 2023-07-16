@@ -78,16 +78,16 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
   private byte[] payloadBytes; // payloadLengthBuffer存的是payloads的长度， 而它却存的是值本身
   private int payloadByteUpto; // 临时存储每个doc的每个pos下的payloads的数组：payloadLengthBuffer的下标
 
-  private int lastBlockDocID;
-  private long lastBlockPosFP;
-  private long lastBlockPayFP;
+  private int lastBlockDocID; // 在写term的倒排信息过程中， 记录着上一个 doc block 中的最后一个doc的id
+  private long lastBlockPosFP; // 上一个block(doc凑齐了128个）, 它们的pos信息在pos文件中的结束位置
+  private long lastBlockPayFP; // 上一个block(doc凑齐了128个）, 它们的pay信息在pay文件中的结束位置
   private int lastBlockPosBufferUpto;
   private int lastBlockPayloadByteUpto;
 
   private int lastDocID; // 当前的term，在刷倒排信息进入文件，lastDocId，标识当前刷的是哪个doc的信息
-  private int lastPosition;
-  private int lastStartOffset; // 临时存储，pos的offset的start位置
-  private int docCount;
+  private int lastPosition; // 当前的term，在处理某个doc的时候，doc内的变量
+  private int lastStartOffset; // 临时存储，pos的offset的start位置 , doc内的变量
+  private int docCount; // 当前在写的term， 处理了多少个doc了
 
   private final PForUtil pforUtil;
   private final Lucene90SkipWriter skipWriter;
@@ -335,14 +335,14 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
     // Since we don't know df for current term, we had to buffer
     // those skip data for each block, and when a new doc comes,
     // write them to skip file.
-    if (docBufferUpto == BLOCK_SIZE) { // 对应 startDoc()方法里的247行; 即start的时候发现，写完了
+    if (docBufferUpto == BLOCK_SIZE) { // 对应 startDoc()方法里的247行; 即start的时候发现，写完了一个block
       lastBlockDocID = lastDocID; // 更新上一个block的BlockDocID
-      if (posOut != null) {
+      if (posOut != null) {                        // 并且更新 这个block的最后一个doc的对应的pay，pos在文件里的位置
         if (payOut != null) {
           lastBlockPayFP = payOut.getFilePointer();// 更新上一个payloads block的指针
         }
         lastBlockPosFP = posOut.getFilePointer(); // 更新上一个 pos block的指针
-        lastBlockPosBufferUpto = posBufferUpto; // 所以，其实不同doc的pos信息其实是会混在一个block里的
+        lastBlockPosBufferUpto = posBufferUpto; // 上个block完成的时候，它的pos信息在缓存数组里的位置，所以，其实不同doc的pos信息其实是会混在一个block里的
         lastBlockPayloadByteUpto = payloadByteUpto; // payloads信息也是
       }
       docBufferUpto = 0;
@@ -350,7 +350,7 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
   }
 
   /** Called when we are done adding docs to this term */
-  @Override
+  @Override // 由此可见，对于一个term先写docId，freq，pos，pay等等信息，写完之后， 想.doc文件里写 skip list
   public void finishTerm(BlockTermState _state) throws IOException {
     IntBlockTermState state = (IntBlockTermState) _state;
     assert state.docFreq > 0;
@@ -384,11 +384,11 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
 
     final long lastPosBlockOffset;
 
-    if (writePositions) {
+    if (writePositions) { // totalTermFreq就是 total position， payloads，offsets
       // totalTermFreq is just total number of positions(or payloads, or offsets)
       // associated with current term.
       assert state.totalTermFreq != -1;
-      if (state.totalTermFreq > BLOCK_SIZE) {
+      if (state.totalTermFreq > BLOCK_SIZE) { // 超过一个block
         // record file offset for last pos in last block
         lastPosBlockOffset = posOut.getFilePointer() - posStartFP;
       } else {
@@ -404,19 +404,19 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
         int lastPayloadLength = -1; // force first payload length to be written
         int lastOffsetLength = -1; // force first offset length to be written
         int payloadBytesReadUpto = 0;
-        for (int i = 0; i < posBufferUpto; i++) {
+        for (int i = 0; i < posBufferUpto; i++) { // 剩下的pos s
           final int posDelta = (int) posDeltaBuffer[i];
           if (writePayloads) {
             final int payloadLength = (int) payloadLengthBuffer[i];
-            if (payloadLength != lastPayloadLength) {
+            if (payloadLength != lastPayloadLength) { //强制写下第一个，后续只有在出现不同的情况下才写
               lastPayloadLength = payloadLength;
               posOut.writeVInt((posDelta << 1) | 1);
-              posOut.writeVInt(payloadLength);
+              posOut.writeVInt(payloadLength);        // 411行数说的写，是什么， payloadLength
             } else {
               posOut.writeVInt(posDelta << 1);
             }
 
-            if (payloadLength != 0) {
+            if (payloadLength != 0) { // payload 存在， 则将其一并写入到pos文件里:从payloadBytes的payloadBytesReadUpto位置开始读
               posOut.writeBytes(payloadBytes, payloadBytesReadUpto, payloadLength);
               payloadBytesReadUpto += payloadLength;
             }
@@ -428,7 +428,7 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
             int delta = (int) offsetStartDeltaBuffer[i];
             int length = (int) offsetLengthBuffer[i];
             if (length == lastOffsetLength) {
-              posOut.writeVInt(delta << 1);
+              posOut.writeVInt(delta << 1); // 以低位0标识是否有新的length数据，为0则复用前面的就好了，不为0，则读一下
             } else {
               posOut.writeVInt(delta << 1 | 1);
               posOut.writeVInt(length);
@@ -445,20 +445,20 @@ public final class Lucene90PostingsWriter extends PushPostingsWriterBase { // .d
     } else {
       lastPosBlockOffset = -1;
     }
-
+    // 由此可见，对于一个term先写docId，freq，pos，pay等等信息，写完之后， 想.doc文件里写 skip list
     long skipOffset;
-    if (docCount > BLOCK_SIZE) {
-      skipOffset = skipWriter.writeSkip(docOut) - docStartFP;
+    if (docCount > BLOCK_SIZE) { // 判断总docCount是否大于BlockSize， 若大于则至少一个block说明肯定存在跳表，需要持久化跳表
+      skipOffset = skipWriter.writeSkip(docOut) - docStartFP; // 把之前构建的跳表，写入docOut
     } else {
       skipOffset = -1;
     }
-
-    state.docStartFP = docStartFP;
-    state.posStartFP = posStartFP;
-    state.payStartFP = payStartFP;
-    state.singletonDocID = singletonDocID;
-    state.skipOffset = skipOffset;
-    state.lastPosBlockOffset = lastPosBlockOffset;
+    // state中的这些信息就是term的元信息，会存储在term字典中
+    state.docStartFP = docStartFP; // 更新IntBlockTermState的状态，这个term的倒排信息在文件里从docStarFP开始
+    state.posStartFP = posStartFP; // same
+    state.payStartFP = payStartFP; // same
+    state.singletonDocID = singletonDocID; // 是否只有一个doc
+    state.skipOffset = skipOffset; // 跳表数据在文件里的位置，offset， 相对于 docStartFP而言
+    state.lastPosBlockOffset = lastPosBlockOffset; // 最后一个pos block在文件中的结束位置（也就是最后用vint压缩的开始位置）
     docBufferUpto = 0;
     posBufferUpto = 0;
     lastDocID = 0;

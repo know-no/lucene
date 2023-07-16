@@ -44,7 +44,7 @@ public abstract class Outputs<T> {
   public abstract T subtract(T output, T inc);
 
   /** Eg add("foo", "bar") -&gt; "foobar" */
-  public abstract T add(T prefix, T output);
+  public abstract T add(T prefix, T output); // 相当于是执行 加操作
 
   /** Encode an output value into a {@link DataOutput}. */
   public abstract void write(T output, DataOutput out) throws IOException;

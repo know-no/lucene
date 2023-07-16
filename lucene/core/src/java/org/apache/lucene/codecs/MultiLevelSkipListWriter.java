@@ -125,7 +125,7 @@ public abstract class MultiLevelSkipListWriter { // 子类实现就是：各种�
    * // 根据当前已经处理的文档数量，预先计算出将待写入SkipDatum信息的层数 // buffer下来
    * @param df the current document frequency
    * @throws IOException If an I/O error occurs
-   */ // 每隔128个doc， 就会执行一次bufferSkip操作, 目的是把跳表写入buffers中
+   */ // 每隔128个doc， 就会执行一次bufferSkip操作, 目的是把跳表写入buffers中 // df表示到目前为止的文档总数，根据df可以得到当前要生成的跳表节点最多可以到达第几层。
   public void bufferSkip(int df) throws IOException {//buffer是动词,skip是名词.把df个doc缓存下来,构建出skiplist.等到最后writerskip的时候才会写
 
     assert df % skipInterval == 0;
@@ -139,9 +139,9 @@ public abstract class MultiLevelSkipListWriter { // 子类实现就是：各种�
     }
 
     long childPointer = 0;
-
+    //注意level的计算， 是目前为止的doc总数，所以，它buffer一个最底层的节点（block）的时候，会向上蔓延，来生成索引
     for (int level = 0; level < numLevels; level++) {
-      writeSkipData(level, skipBuffer[level]); // 表示， 将level层的数据写到level层
+      writeSkipData(level, skipBuffer[level]); // 表示, 将level层的数据写到level层
 
       long newChildPointer = skipBuffer[level].size(); // 写入的数据的长度
 

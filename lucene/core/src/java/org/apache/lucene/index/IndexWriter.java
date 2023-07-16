@@ -934,7 +934,7 @@ public class IndexWriter
    * @throws IOException if the directory cannot be read/written to, or if it does not exist and
    *     <code>conf.getOpenMode()</code> is <code>OpenMode.APPEND</code> or if there is any other
    *     low-level IO error
-   */
+   */ // 详细流程可参考： https://blog.csdn.net/qq_18870127/article/details/124945653
   public IndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
     enableTestPoints = isEnableTestPoints();
     conf.setIndexWriter(this); // prevent reuse by other instances // 每份配置都生产一个IndexWriter, for 'live' change

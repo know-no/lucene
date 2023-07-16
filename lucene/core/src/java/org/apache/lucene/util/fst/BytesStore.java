@@ -39,7 +39,7 @@ class BytesStore extends DataOutput implements Accountable {
   private final int blockBits;
   private final int blockMask;
 
-  private byte[] current;
+  private byte[] current; // 存储Arc相关信息的重要数组,arc的信息都写成二进制丢进来
   private int nextWrite;
 
   public BytesStore(int blockBits) {
