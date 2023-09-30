@@ -310,31 +310,31 @@ public class FSTCompiler<T> { // 构建FST的入口类, 不再是使用FST#Build
   private CompiledNode compileNode(UnCompiledNode<T> nodeIn, int tailLength) throws IOException {
     final long node;
     long bytesPosStart = bytes.getPosition(); // 当前FST的序列化存储的写入游标
-    if (dedupHash != null
-        && (doShareNonSingletonNodes || nodeIn.numArcs <= 1)
-        && tailLength <= shareMaxTailLength) {
-      if (nodeIn.numArcs == 0) {
-        node = fst.addNode(this, nodeIn);
+    if (dedupHash != null // 判断关于是否要共享节点，决定了是否使用共享后缀
+        && (doShareNonSingletonNodes || nodeIn.numArcs <= 1) // /*doShareNonSingletonNodes表示是否需要共享节点*/
+        && tailLength <= shareMaxTailLength/*如果节点只有一个出边*/) { // 在配置的最长公共共享后缀范围之内
+      if (nodeIn.numArcs == 0) { // 如果节点没有出边，一般是final节点
+        node = fst.addNode(this, nodeIn);// 真正序列化是通过 fst.addNode，返回的node是节点在fst中flag的位置
         lastFrozenNode = node;
-      } else {
-        node = dedupHash.add(this, nodeIn);
+      } else { // dedupHash会判断节点是否已经序列化过， 如果序列化过了，则直接复用就好了.否则使用fst.addNode
+        node = dedupHash.add(this, nodeIn); // 共享后缀的实现
       }
     } else {
       node = fst.addNode(this, nodeIn);
     }
     assert node != -2;
 
-    long bytesPosEnd = bytes.getPosition();
-    if (bytesPosEnd != bytesPosStart) {
+    long bytesPosEnd = bytes.getPosition(); // 序列化之后， bytes内的可写位置
+    if (bytesPosEnd != bytesPosStart) { // 不相等，说明序列了一个新的node
       // The FST added a new node:
       assert bytesPosEnd > bytesPosStart;
       lastFrozenNode = node;
     }
 
-    nodeIn.clear();
+    nodeIn.clear(); // 内容已经被序列化了， 不必保存了
 
     final CompiledNode fn = new CompiledNode();
-    fn.node = node;
+    fn.node = node; // 编译好的node的id是多少
     return fn;
   }
   //prefixLenPlus1 = 前缀的长度 + 1, 方法的含义是：把上一个term的在frontier里的与当前的term不共享的后缀node冰冻，因为frontier里0是root，所以可以理解为+1是为了因为root
@@ -582,13 +582,13 @@ public class FSTCompiler<T> { // 构建FST的入口类, 不再是使用FST#Build
   }
 
   /** Returns final FST. NOTE: this will return null if nothing is accepted by the FST. */
-  public FST<T> compile() throws IOException {
+  public FST<T> compile() throws IOException { // 将root节点编译， 并且序列化
 
-    final UnCompiledNode<T> root = frontier[0];
+    final UnCompiledNode<T> root = frontier[0]; // root节点
 
     // minimize nodes in the last word's suffix
-    freezeTail(0);
-    if (root.inputCount < minSuffixCount1
+    freezeTail(0); // 冰冻除了root之外的所有节点
+    if (root.inputCount < minSuffixCount1 // 剪枝相关，忽略
         || root.inputCount < minSuffixCount2
         || root.numArcs == 0) {
       if (fst.emptyOutput == null) {
@@ -604,7 +604,7 @@ public class FSTCompiler<T> { // 构建FST的入口类, 不再是使用FST#Build
     }
     // if (DEBUG) System.out.println("  builder.finish root.isFinal=" + root.isFinal + "
     // root.output=" + root.output);
-    fst.finish(compileNode(root, lastInput.length()).node);
+    fst.finish(compileNode(root, lastInput.length()).node); // 最终完成构建
 
     return fst;
   }
