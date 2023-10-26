@@ -97,10 +97,10 @@ public final class FieldsIndexWriter implements Closeable {
   void writeIndex(int numDocs, long startPointer) throws IOException {
     assert startPointer >= previousFP;
     docsOut.writeVInt(numDocs); // 向 临时的docsOut，标识一个block写入多少个文档
-    filePointersOut.writeVLong(startPointer - previousFP); // 在临时文件中写入fdt的file pointers,写入的是长度?todo:是谁的长度?
-    previousFP = startPointer;  // 看起来是上一个 chunk的在真正的data里的长度?如果是stored 则是fdt,如果是termvector,则是 tvd
-    totalDocs += numDocs;       // 第一个长度,应该是fieldsStream(fdt,tvd)的HEADER长度
-    totalChunks++;
+    filePointersOut.writeVLong(startPointer - previousFP); // 在临时文件中写入fdt的file pointers,写入的是长度?
+    previousFP = startPointer;  // 是上一个 chunk的在真正的data里的长度?如果是stored 则是fdt,如果是termvector,则是 tvd
+    totalDocs += numDocs;       // 为什么是上一个？首先是因为这个chunk在这个流中的长度是不确定的，因为要经过运行时选中的“压缩策略”，以及
+    totalChunks++;              //  第一个长度,应该是fieldsStream(fdt,tvd)的HEADER长度
   }
   // metaOut是元信息索引文件fdm, tvm.  maxPointer是fdt,tvd的pointer.  numDocs是目前处理过的doc的count
   void finish(int numDocs, long maxPointer, IndexOutput metaOut) throws IOException {
@@ -114,12 +114,12 @@ public final class FieldsIndexWriter implements Closeable {
     try (IndexOutput dataOut = // 新建一个output, 构建的是 fdx tvx, 即chunk的索引
         dir.createOutput(IndexFileNames.segmentFileName(name, suffix, extension), ioContext)) {
       CodecUtil.writeIndexHeader(dataOut, codecName + "Idx", VERSION_CURRENT, id, suffix);
-
+      // 从这里可以看出 meta：fdm tvm的文件构造了： header ， numdocs, blockshift , totalChunks+1
       metaOut.writeInt(numDocs);
       metaOut.writeInt(blockShift);
       metaOut.writeInt(totalChunks + 1);
       metaOut.writeLong(dataOut.getFilePointer()); // fdm, tvm 写入fdx tvx的当前的pointer
-
+      // 第一个临时文件， docsOut ，里面记录着每个chunk内的doc的数量  
       try (ChecksumIndexInput docsIn =
           dir.openChecksumInput(docsOut.getName(), IOContext.READONCE)) {
         CodecUtil.checkHeader(docsIn, codecName + "Docs", VERSION_CURRENT, VERSION_CURRENT);
@@ -145,7 +145,7 @@ public final class FieldsIndexWriter implements Closeable {
       }
       dir.deleteFile(docsOut.getName()); // 删除临时文件
       docsOut = null;
-      // 每个chunk在文件中的长度, 写在了 filePointersOut临时文件里, 现在要转义到某个meta stream里了(fdm tvm)
+      // 每个chunk的开始位置和上一个chunk的开始位置的差值，约等于记录了每个chunk在文件中的长度, 写在了 filePointersOut临时文件里, 现在要转义到某个meta stream里了(fdm tvm)
       metaOut.writeLong(dataOut.getFilePointer());
       try (ChecksumIndexInput filePointersIn =
           dir.openChecksumInput(filePointersOut.getName(), IOContext.READONCE)) {

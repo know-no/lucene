@@ -44,7 +44,7 @@ final class Sorter {
    * A permutation of doc IDs. For every document ID between <code>0</code> and {@link
    * IndexReader#maxDoc()}, <code>oldToNew(newToOld(docID))</code> must return <code>docID</code>.
    */
-  abstract static class DocMap {
+  abstract static class DocMap { // 这种映射机制是如何做到 预排序 的呢？
 
     /** Given a doc ID from the original index, return its ordinal in the sorted index. */
     abstract int oldToNew(int docID);
@@ -146,21 +146,21 @@ final class Sorter {
     // It can be common to sort a reader, add docs, sort it again, ... and in
     // that case timSort can save a lot of time
     sorter.sort(0, docs.length); // docs is now the newToOld mapping
-
+    // 原本 docs内的元素是自然内部序的, 并且下标和值是相同的(lucene的内部id)，也就是说数组下标就是序列值， 排序之后，就是新的顺序了
     // The reason why we use MonotonicAppendingLongBuffer here is that it
     // wastes very little memory if the index is in random order but can save
     // a lot of memory if the index is already "almost" sorted
     final PackedLongValues.Builder newToOldBuilder =
         PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-    for (int i = 0; i < maxDoc; ++i) {
-      newToOldBuilder.add(docs[i]);
-    }
+    for (int i = 0; i < maxDoc; ++i) {//如a ab ac acb分别是 1 2 3 4按照元素的长度以及字典序排序的话是 4 3 2 1
+      newToOldBuilder.add(docs[i]);//把新的顺序加入到 Builder 里， 如果builder类似数组有下标，则会对应着顺序，新的顺序对应原来哪个文档
+    } //    可以通过新的次序获取到旧的id，如：我想获得新的第四个元素， [4] -> 1， id为1的元素就是新的排名第四的
     final PackedLongValues newToOld = newToOldBuilder.build();
 
     // invert the docs mapping:
-    for (int i = 0; i < maxDoc; ++i) {
-      docs[(int) newToOld.get(i)] = i;
-    } // docs is now the oldToNew mapping
+    for (int i = 0; i < maxDoc; ++i) { 
+      docs[(int) newToOld.get(i)] = i;//这个操作基本是把, 可以用 原来的doc的顺序，获取到 新的顺序
+    } // docs is now the oldToNew mapping // newToOld.get(1)是4， 则docs[4]=1, 相当于用旧元素的下标，可以获取到现在新的序号
 
     final PackedLongValues.Builder oldToNewBuilder =
         PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
@@ -223,7 +223,7 @@ final class Sorter {
               return comp;
             }
           }
-          return Integer.compare(docID1, docID2); // docid order tiebreak
+          return Integer.compare(docID1, docID2); // docid order tiebreak //先
         };
 
     return sort(maxDoc, comparator);

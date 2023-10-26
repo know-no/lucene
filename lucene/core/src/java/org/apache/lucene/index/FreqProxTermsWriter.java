@@ -119,13 +119,13 @@ final class FreqProxTermsWriter extends TermsHash {
               Terms terms = in.terms(field);
               if (terms == null) {
                 return null;
-              } else { // 包装一下， 返回的都是 排过序的
+              } else { // 包装一下， 返回的都是 排过序的; 即这个Field里面的terms 返回的时候是排序的,这里貌似和docId没关系
                 return new SortingTerms(terms, infos.fieldInfo(field).getIndexOptions(), docMap);
               }
             }
           };
     }
-    // Lucene90PostingsWriter  /最终走到Lucene90BlockTreeTermsWriter#write，以后介绍索引文件生成再说
+    // Lucene90PostingsWriter  /最终走到 Lucene90BlockTreeTermsWriter#write，以后介绍索引文件生成再说
     try (FieldsConsumer consumer = //lucene90PostingsFormat
         state.segmentInfo.getCodec().postingsFormat().fieldsConsumer(state)) {
       consumer.write(fields, norms);

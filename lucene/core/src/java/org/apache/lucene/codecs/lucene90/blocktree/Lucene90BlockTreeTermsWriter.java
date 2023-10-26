@@ -344,10 +344,10 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
     String lastField = null;
     for (String field : fields) { // 遍历Fields
       assert lastField == null || lastField.compareTo(field) < 0;
-      lastField = field;
+      lastField = field; // last存在的意义是什么，难道还有同名的Field存在？
 
       // if (DEBUG) System.out.println("\nBTTW.write seg=" + segment + " field=" + field);
-      Terms terms = fields.terms(field);
+      Terms terms = fields.terms(field); // 获取这个Field下的所有terms
       if (terms == null) {
         continue;
       }
@@ -1022,7 +1022,7 @@ public final class Lucene90BlockTreeTermsWriter extends FieldsConsumer {
       */
       // 写入后term返回 state，state是写入后的状态. 一个term写完后的状态
       BlockTermState state = postingsWriter.writeTerm(text, termsEnum, docsSeen, norms);
-      if (state != null) { // 写完之后，就可以构建 term 的索引了
+      if (state != null) { // 写完之后，就可以构建 term 的索引了: FST
 
         assert state.docFreq != 0;
         assert fieldInfo.getIndexOptions() == IndexOptions.DOCS

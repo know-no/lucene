@@ -151,7 +151,7 @@ abstract class TermsHashPerField implements Comparable<TermsHashPerField> {//倒
       // not enough space remaining in this buffer -- jump to next buffer and lose this remaining
       // piece
       intPool.nextBuffer();
-    } // todo: 这个2我不明白;可能是因为每个TermsHashPerField都有streamCount参数，而且最多有两个TermsHashPerField?那调用两次，岂不是8?
+    }// todo: 这个2我不明白;可能是因为每个TermsHashPerField都有streamCount参数，而且最多有两个TermsHashPerField?那调用两次，岂不是8?可能是因为Prox和Vector是共用的一个TermsHash，每人两个?
     // ( 2 * streamCount) * ByteBlockPool.FIRST_LEVEL_SIZE + bytePool.byteUpto > ByteBlockPool.BYTE_BLOCK_SIZE
     if (ByteBlockPool.BYTE_BLOCK_SIZE - bytePool.byteUpto // 这一层剩余的空间,都不能存放两个stream的第一个分片
         < (2 * streamCount) * ByteBlockPool.FIRST_LEVEL_SIZE) {

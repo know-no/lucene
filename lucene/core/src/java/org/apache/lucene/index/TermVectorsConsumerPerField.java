@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.codecs.TermVectorsWriter;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
-// 和 FreqProxTermsWriterPerField 最大的区别是: TermVectorsCOnsumerPerField每处理完一个doc，就进行序列化然后重置等待处理下一个doc
+// 和 FreqProxTermsWriterPerField 最大的区别是: TermVectorsConsumerPerField每处理完一个doc，就进行序列化然后重置等待处理下一个doc
 final class TermVectorsConsumerPerField extends TermsHashPerField {
 // 实际上在TermVectorsConsumerPerField中只负责调度Lucene90CompressingTermVectorsWriter进行操作
   private TermVectorsPostingsArray termVectorsPostingsArray;

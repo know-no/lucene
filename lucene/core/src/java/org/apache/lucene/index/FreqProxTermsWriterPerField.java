@@ -51,7 +51,7 @@ final class FreqProxTermsWriterPerField extends TermsHashPerField { // 疑问：
             ? 2
             : 1,
         termsHash.intPool,
-        termsHash.bytePool,
+        termsHash.bytePool, // Prox和Vector使用的是同一个Field的 TermsHash， 所以共用的 intPool和bytePool等等
         termsHash.termBytePool,
         termsHash.bytesUsed,
         nextPerField,

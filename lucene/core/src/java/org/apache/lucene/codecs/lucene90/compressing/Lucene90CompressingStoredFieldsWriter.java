@@ -186,7 +186,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     this.numStoredFields[numBufferedDocs] = numStoredFieldsInDoc;//此doc的处理了的storedfield的数目，写入数组
     numStoredFieldsInDoc = 0;
     endOffsets[numBufferedDocs] = Math.toIntExact(bufferedDocs.size()); // 记录当前doc的storedField在缓存output中的结束的位置
-    ++numBufferedDocs;
+    ++numBufferedDocs; // 结束一个doc，需要增加计数，这个chunk里面的doc的数量
     if (triggerFlush()) { // 判断是否triger flush : 1. 大小超过一个chunk 2. doc个数超出一个chunk的限制
       flush(false); // 本质上是想要生成一个chunk, 如果处理的doc的数量,或者存储大小符合阈值了 // 到此为止, 没有任何和 FieldsIndexWriter的关系
     }
@@ -273,8 +273,8 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
   @Override // 在StoredFieldsConsumer中使用  // writeField只是把内容写到了自身的缓存里 bufferedDocs, 并且更新numStoredFieldsInDoc
   public void writeField(FieldInfo info, IndexableField field) throws IOException { // 写入的是field, 可以是不同的field
                                                                 // 在314行的 infoAndBits, 就会记录处理的是哪个field
-    ++numStoredFieldsInDoc; // 处理这个doc， 又要处理一个field了
-
+    ++numStoredFieldsInDoc; // 处理这个doc， 又要处理一个field了, 如果这个doc在某个Field上，有多个field,numStoredFieldsInDoc任然会增加，所以我们可以看到
+    // 行存StoredFields的时候，不会合并同一个doc的同一个Field的不同field值。也能理解，如果运行时，第一个FieldA出现在第一个位置，第二个FieldA出现在一万个位置，不方便合并
     int bits = 0; // 这个field的数据类型的编码
     final BytesRef bytes;
     final String string;
